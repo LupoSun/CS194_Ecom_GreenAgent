@@ -1,0 +1,29 @@
+name                = "Ecom_GreenAgent" 
+description         = '''
+
+What environment: Mock e-commerce API (search/cart/checkout) hosted on Railway.
+What tasks: Given user history, evaluate agents that build the next basket.
+What metrics: precision, recall, F1 on SKUs; optional latency/fail rate.
+
+'''
+url                 = "http://0.0.0.0:9001" # e.g. http://111.111.111.111:8000/
+version             = "1.0.0"
+
+defaultInputModes   = ["text"]
+defaultOutputModes  = ["text"]
+
+[capabilities]
+input = ["text"]
+output = ["text"]
+streaming = false
+
+[[skills]]
+id          = "ecom_assess"
+name        = "E-commerce Basket Assessment"
+description = "Run one assessment on a candidate agent against the Railway e-commerce API using a dataset task; returns metrics and trace."
+tags        = ["evaluation", "green", "a2a"]
+examples    = ["Assess this agent on task ex1 and report precision/recall/F1."]
+
+[protocols.a2a]
+message_kinds = ["message"]
+reset = true

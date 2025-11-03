@@ -1,0 +1,16 @@
+{ "tasks": [
+  {
+    "task_id":"ex1",
+    "user_id":"u123",
+    "history":[{"product_id":1,"qty":1},{"product_id":7,"qty":2}],
+    "goal":"rebuy similar breakfast/juice items",
+    "ground_truth_items":{"1":2,"10":1}
+  },
+  {
+    "task_id":"ex2",
+    "user_id":"u456",
+    "history":[{"product_id":12,"qty":1}],
+    "goal":"dessert stock-up",
+    "ground_truth_items":{"12":1}
+  }
+]}
