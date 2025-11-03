@@ -292,7 +292,6 @@ class EcomGreenAgentExecutor(AgentExecutor):
             user_id
         )
     
-    # CHANGE #4: Modified to exclude /checkout from tool list
     def _build_task_message(self, task_info: Dict) -> str:
         """Build task description for white agent - WITHOUT CHECKOUT TOOL"""
         user_id = task_info["user_id"]
@@ -344,7 +343,6 @@ class EcomGreenAgentExecutor(AgentExecutor):
             Remember: After adding items, send "{COMPLETION_SIGNAL}" when done.
             """
     
-    # CHANGE #6: New method to call Railway checkout API
     def _call_railway_checkout(self, agent_key: str) -> List[int]:
         """
         Call Railway /checkout API to get final cart contents
