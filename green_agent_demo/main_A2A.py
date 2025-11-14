@@ -943,6 +943,7 @@ def start_green_agent(
         # Health + reset
         Route("/healthz", endpoint=healthcheck, methods=["GET"]),
         Route("/health", endpoint=healthcheck, methods=["GET"]),
+        Route("/status", endpoint=healthcheck, methods=["GET"]),
         Route("/reset", endpoint=reset_endpoint, methods=["POST"]),
     ])
     
@@ -963,14 +964,27 @@ def start_green_agent(
 
 
 if __name__ == "__main__":
-    # Local dev entry point: run uvicorn directly (no AgentBeats controller)
+    # Entry point for both local dev and Cloud Run
+    import os
+    import uvicorn
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
+    # Default dataset paths
     products_csv = os.path.join(script_dir, "dataset", "ic_products.csv")
     orders_csv = os.path.join(script_dir, "dataset", "super_shortened_orders_products_combined.csv")
 
+    # Cloud Run sets PORT (usually 8080); fall back to 9000 locally
+    port = int(os.environ.get("PORT", "9000"))
+
+    # Start the green agent ASGI app
     app = start_green_agent(
         products_csv=products_csv,
         orders_csv=orders_csv,
+        host="0.0.0.0",
+        port=port,
     )
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "9001")))
+
+    # If start_green_agent returns an ASGI app, serve it with uvicorn
+    if app is not None:
+        uvicorn.run(app, host="0.0.0.0", port=port)
