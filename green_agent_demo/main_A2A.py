@@ -5,7 +5,12 @@ Integrates existing FastAPI logic with A2A protocol
 
 import os
 import uvicorn
-import tomllib  
+
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:
+    import tomli as tomllib  # Python 3.10 fallback
+
 import json
 import time
 from typing import Dict, Any, List, Optional, Tuple, Iterable
@@ -32,7 +37,8 @@ from html import unescape
 ROOT = Path(__file__).resolve().parent
 load_dotenv(dotenv_path=ROOT / ".env")
 
-RAILWAY_CHECKOUT_URL = os.environ.get("ECOM_API_BASE", "https://your-railway-api.railway.app/checkout") + "/checkout"
+ECOM_API_BASE = os.environ.get("ECOM_API_BASE", "https://your-railway-api.railway.app")
+RAILWAY_CHECKOUT_URL = ECOM_API_BASE.rstrip("/") + "/checkout"
 COMPLETION_SIGNAL = "##READY_FOR_CHECKOUT##"  # Signal white agent sends when done
 
 # Existing helper functions
@@ -863,8 +869,15 @@ def start_green_agent(
     
     # Load agent card from TOML or use defaults
     agent_card_dict = load_agent_card_toml(agent_name, ROOT)
-    agent_card_dict["url"] = f"http://{host}:{port}"  # Set URL at runtime
-    
+
+    # If running under AgentBeats controller, AGENT_URL will be injected
+    agent_url = os.environ.get("AGENT_URL")
+    if agent_url:
+        agent_card_dict["url"] = agent_url
+    else:
+        agent_card_dict["url"] = f"http://{host}:{port}"
+
+
     agent_card = AgentCard(**agent_card_dict)
     
     # Create executor with your evaluation logic
@@ -921,8 +934,13 @@ def start_green_agent(
     
     # Add all standard endpoints for AgentBeats compatibility
     starlette_app.routes.extend([
+        # Agent card
         Route("/", endpoint=get_agent_card_root, methods=["GET"]),
         Route("/agent_card", endpoint=get_agent_card_explicit, methods=["GET"]),
+        Route("/agents/card", endpoint=get_agent_card_explicit, methods=["GET"]),
+        Route("/.well-known/agent-card.json", endpoint=get_agent_card_root, methods=["GET"]),
+
+        # Health + reset
         Route("/healthz", endpoint=healthcheck, methods=["GET"]),
         Route("/health", endpoint=healthcheck, methods=["GET"]),
         Route("/reset", endpoint=reset_endpoint, methods=["POST"]),
@@ -936,18 +954,23 @@ def start_green_agent(
     print(f"  POST http://{host}:{port}/reset      → Reset state")
     print(f"\nAgent ready for AgentBeats platform! ✅")
     print(f"\n⚠️  Check the 'A2A framework routes' printed above for exact paths!")
-    uvicorn.run(starlette_app, host=host, port=port)
+    # IMPORTANT:
+    # - When running under AgentBeats controller, we return the ASGI app
+    #   and let main.py / run.sh start uvicorn.
+    # - For local dev, the __main__ block below will run uvicorn directly.
+    return starlette_app
+
 
 
 if __name__ == "__main__":
-    # Get the directory where this script is located
+    # Local dev entry point: run uvicorn directly (no AgentBeats controller)
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Adjust these paths to the dataset location
+
     products_csv = os.path.join(script_dir, "dataset", "ic_products.csv")
     orders_csv = os.path.join(script_dir, "dataset", "super_shortened_orders_products_combined.csv")
-    
-    start_green_agent(
+
+    app = start_green_agent(
         products_csv=products_csv,
-        orders_csv=orders_csv
+        orders_csv=orders_csv,
     )
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "9001")))
