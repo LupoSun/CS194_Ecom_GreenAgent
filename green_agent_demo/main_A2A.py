@@ -919,8 +919,20 @@ def start_green_agent(
         return JSONResponse(agent_card_dict)
     
     async def healthcheck(request):
-        """Health check endpoint for AgentBeats"""
-        return JSONResponse({"status": "healthy", "agent": agent_card_dict["name"]})
+        """
+        Status endpoint for AgentBeats.
+
+        AgentBeats polls this and looks at:
+        - status: "unlocked" / "locked"
+        - ready:  boolean
+        """
+        return JSONResponse(
+            {
+                "status": "unlocked",                     # or "locked" if you ever gate it
+                "ready": True,                            # advertise that we are ready
+                "agent": agent_card_dict["name"],         # extra info is fine
+            }
+        )
     
     async def reset_endpoint(request):
         """Reset endpoint - clears agent state"""
