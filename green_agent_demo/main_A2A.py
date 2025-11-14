@@ -931,6 +931,61 @@ def start_green_agent(
     # The A2A app should already have mounted /a2a/* routes
     # If not, we need to check what path it actually uses
 
+    async def a2a_handler(request):
+        """
+        Minimal JSON-RPC handler so AgentBeats can call /a2a.
+
+        Supports:
+            - controller.ping  -> simple health response
+        All other methods return a JSON-RPC error for now.
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(
+                {"error": "Invalid JSON"},
+                status_code=400,
+            )
+
+        jsonrpc = body.get("jsonrpc")
+        method = body.get("method")
+        req_id = body.get("id")
+        params = body.get("params", {})
+
+        # Basic JSON-RPC version check (optional)
+        if jsonrpc not in ("2.0", 2.0, None):
+            return JSONResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {"code": -32600, "message": "Invalid Request"},
+                },
+                status_code=400,
+            )
+
+        # Readiness ping used by AgentBeats
+        if method == "controller.ping":
+            return JSONResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {"status": "ok", "ready": True},
+                }
+            )
+
+        # Stub for now: we can wire real methods here later (e.g. ecom_assess)
+        return JSONResponse(
+            {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {
+                    "code": -32601,
+                    "message": f"Method '{method}' not implemented on this agent.",
+                },
+            },
+            status_code=400,
+        )
+
     
     # Add all standard endpoints for AgentBeats compatibility
     starlette_app.routes.extend([
@@ -945,6 +1000,9 @@ def start_green_agent(
         Route("/health", endpoint=healthcheck, methods=["GET"]),
         Route("/status", endpoint=healthcheck, methods=["GET"]),
         Route("/reset", endpoint=reset_endpoint, methods=["POST"]),
+
+        # NEW: A2A JSON-RPC endpoint
+        Route("/a2a", endpoint=a2a_handler, methods=["POST"]),
     ])
     
     print(f"\nStarting green agent on {host}:{port}...")
