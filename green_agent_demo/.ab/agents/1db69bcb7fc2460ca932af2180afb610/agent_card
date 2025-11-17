@@ -1,0 +1,46 @@
+{
+  "additionalInterfaces": null,
+  "capabilities": {
+    "extensions": null,
+    "pushNotifications": null,
+    "stateTransitionHistory": null,
+    "streaming": false
+  },
+  "defaultInputModes": [
+    "text"
+  ],
+  "defaultOutputModes": [
+    "text"
+  ],
+  "description": "\nWhat environment: Mock e-commerce API (search/cart/checkout) hosted on Railway.\nWhat tasks: Given user history, evaluate agents that build the next basket.\nWhat metrics: precision, recall, F1 on SKUs; optional latency/fail rate.\n\n",
+  "documentationUrl": null,
+  "iconUrl": null,
+  "name": "Ecom_GreenAgent",
+  "preferredTransport": "JSONRPC",
+  "protocolVersion": "0.3.0",
+  "provider": null,
+  "security": null,
+  "securitySchemes": null,
+  "signatures": null,
+  "skills": [
+    {
+      "description": "Run one assessment on a candidate agent against the Railway e-commerce API using a dataset task; returns metrics and trace.",
+      "examples": [
+        "Assess this agent on task ex1 and report precision/recall/F1."
+      ],
+      "id": "ecom_assess",
+      "inputModes": null,
+      "name": "E-commerce Basket Assessment",
+      "outputModes": null,
+      "security": null,
+      "tags": [
+        "evaluation",
+        "green",
+        "a2a"
+      ]
+    }
+  ],
+  "supportsAuthenticatedExtendedCard": null,
+  "url": "http://localhost:39776",
+  "version": "1.0.0"
+}

@@ -940,6 +940,10 @@ def start_green_agent(
 
 
 if __name__ == "__main__":
+    # Read from environment variables set by AgentBeats controller
+    host = os.environ.get("HOST", "localhost")
+    port = int(os.environ.get("AGENT_PORT", "9001"))
+
     # Get the directory where this script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
@@ -948,6 +952,8 @@ if __name__ == "__main__":
     orders_csv = os.path.join(script_dir, "dataset", "super_shortened_orders_products_combined.csv")
     
     start_green_agent(
+        host=host,
+        port=port,
         products_csv=products_csv,
         orders_csv=orders_csv
     )
