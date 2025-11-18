@@ -5,7 +5,12 @@ Integrates existing FastAPI logic with A2A protocol
 
 import os
 import uvicorn
-import tomllib  
+
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:
+    import tomli as tomllib  # Python 3.10 fallback
+
 import json
 import time
 from typing import Dict, Any, List, Optional, Tuple, Iterable
@@ -32,7 +37,8 @@ from html import unescape
 ROOT = Path(__file__).resolve().parent
 load_dotenv(dotenv_path=ROOT / ".env")
 
-RAILWAY_CHECKOUT_URL = os.environ.get("ECOM_API_BASE", "https://your-railway-api.railway.app/checkout") + "/checkout"
+ECOM_API_BASE = os.environ.get("ECOM_API_BASE", "https://your-railway-api.railway.app")
+RAILWAY_CHECKOUT_URL = ECOM_API_BASE.rstrip("/") + "/checkout"
 COMPLETION_SIGNAL = "##READY_FOR_CHECKOUT##"  # Signal white agent sends when done
 
 # Existing helper functions
@@ -247,7 +253,7 @@ def _henry_output_instructions():
 
 class EcomGreenAgentExecutor(AgentExecutor):
     """
-    A2A-compatible executor that wraps existing assessment logic
+    A2A-compatible executor that wraps your existing assessment logic
     """
     
     def __init__(self, df_products: pd.DataFrame, df_orders: pd.DataFrame):
@@ -309,7 +315,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
             user_id
         )
         
-        # Tool list WITHOUT /checkout
+        # CHANGE #5: Tool list WITHOUT /checkout
         tools_text = f"""
             ### Available Tools:
 
@@ -389,30 +395,9 @@ class EcomGreenAgentExecutor(AgentExecutor):
         print("Green agent: Received assessment task...")
         
         try:
-            print("Green agent: Received assessment request")
+            # Parse task config
             user_input = context.get_user_input()
-            
-            # Try to parse as XML-wrapped format first (AgentBeats platform style)
-            if "<config>" in user_input or "<white_agent_url>" in user_input:
-                print("Green agent: Detected XML-wrapped format")
-                from ab_src.my_util import parse_tags
-                tags = parse_tags(user_input)
-                
-                # Extract white agent URL if provided
-                white_agent_url = tags.get("white_agent_url", "").strip()
-                
-                # Extract config JSON
-                config_str = tags.get("config", "{}")
-                task_config = json.loads(config_str)
-                
-                # Merge white_agent_url into config if provided
-                if white_agent_url:
-                    task_config["white_agent_url"] = white_agent_url
-            
-            else:
-                # Direct JSON format (your current format)
-                print("Green agent: Detected direct JSON format")
-                task_config = json.loads(user_input)
+            task_config = json.loads(user_input)
 
             agent_key = task_config.get("agent_key", f"user{task_config.get('user_id', 0)}")
             self.current_agent_key = agent_key
@@ -460,8 +445,6 @@ class EcomGreenAgentExecutor(AgentExecutor):
             new_agent_text_message("Assessment cancelled.")
         )
     
-
-
     # ========================================================================
     # SINGLE USER ASSESSMENT
     # ========================================================================
@@ -884,19 +867,16 @@ def start_green_agent(
     df_orders = pd.read_csv(orders_csv)
     print(f"Loaded {len(df_products)} products, {len(df_orders)} order records")
     
-    # Load agent card
+    # Load agent card from TOML or use defaults
     agent_card_dict = load_agent_card_toml(agent_name, ROOT)
-    
-    # IMPORTANT: Use AGENT_URL from environment
-    agent_url = os.getenv("AGENT_URL")
+
+    # If running under AgentBeats controller, AGENT_URL will be injected
+    agent_url = os.environ.get("AGENT_URL")
     if agent_url:
         agent_card_dict["url"] = agent_url
-        print(f"AGENT_URL: {agent_url}")
     else:
-        # Fallback for local testing
-        host = os.getenv("HOST", "0.0.0.0")
-        port = int(os.getenv("AGENT_PORT", "9001"))
         agent_card_dict["url"] = f"http://{host}:{port}"
+
 
     agent_card = AgentCard(**agent_card_dict)
     
@@ -926,72 +906,153 @@ def start_green_agent(
         elif hasattr(route, 'path_regex'):
             print(f"  [*] {route.path_regex.pattern}")
     
-    # # Add AgentBeats-required endpoints
-    # from starlette.responses import JSONResponse
-    # from starlette.routing import Route, Mount
+    # Add AgentBeats-required endpoints
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route, Mount
     
-    # async def get_agent_card_root(request):
-    #     """Root endpoint returns agent card (A2A standard)"""
-    #     return JSONResponse(agent_card_dict)
+    async def get_agent_card_root(request):
+        """Root endpoint returns agent card (A2A standard)"""
+        return JSONResponse(agent_card_dict)
     
-    # async def get_agent_card_explicit(request):
-    #     """Explicit /agent_card endpoint"""
-    #     return JSONResponse(agent_card_dict)
+    async def get_agent_card_explicit(request):
+        """Explicit /agent_card endpoint"""
+        return JSONResponse(agent_card_dict)
     
-    # async def healthcheck(request):
-    #     """Health check endpoint for AgentBeats"""
-    #     return JSONResponse({"status": "healthy", "agent": agent_card_dict["name"]})
+    async def healthcheck(request):
+        """
+        Status endpoint for AgentBeats.
+
+        AgentBeats polls this and looks at:
+        - status: "unlocked" / "locked"
+        - ready:  boolean
+        """
+        return JSONResponse(
+            {
+                "status": "unlocked",                     # or "locked" if you ever gate it
+                "ready": True,                            # advertise that we are ready
+                "agent": agent_card_dict["name"],         # extra info is fine
+            }
+        )
     
-    # async def reset_endpoint(request):
-    #     """Reset endpoint - clears agent state"""
-    #     # Clear any stored runs/state in the executor
-    #     executor.runs.clear()
-    #     return JSONResponse({"status": "reset", "message": "Agent state cleared"})
+    async def reset_endpoint(request):
+        """Reset endpoint - clears agent state"""
+        # Clear any stored runs/state in the executor
+        executor.runs.clear()
+        return JSONResponse({"status": "reset", "message": "Agent state cleared"})
     
     # The A2A app should already have mounted /a2a/* routes
     # If not, we need to check what path it actually uses
 
+    async def a2a_handler(request):
+        """
+        Minimal JSON-RPC handler so AgentBeats can call /a2a.
 
-    # # Add all standard endpoints for AgentBeats compatibility
-    # starlette_app.routes.extend([
-    #     Route("/", endpoint=get_agent_card_root, methods=["GET"]),
-    #     Route("/agent_card", endpoint=get_agent_card_explicit, methods=["GET"]),
-    #     Route("/healthz", endpoint=healthcheck, methods=["GET"]),
-    #     Route("/health", endpoint=healthcheck, methods=["GET"]),
-    #     Route("/reset", endpoint=reset_endpoint, methods=["POST"]),
-    # ])
+        Supports:
+            - controller.ping  -> simple health response
+        All other methods return a JSON-RPC error for now.
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(
+                {"error": "Invalid JSON"},
+                status_code=400,
+            )
 
-    # print(f"\nStarting green agent on {host}:{port}...")
-    # print(f"\nAgentBeats-compatible endpoints:")
-    # print(f"  GET  http://{host}:{port}/           → Agent card")
-    # print(f"  GET  http://{host}:{port}/agent_card → Agent card")
-    # print(f"  GET  http://{host}:{port}/healthz    → Health check")
-    # print(f"  POST http://{host}:{port}/reset      → Reset state")
-    # print(f"\nAgent ready for AgentBeats platform! ✅")
-    # print(f"\n⚠️  Check the 'A2A framework routes' printed above for exact paths!")
+        jsonrpc = body.get("jsonrpc")
+        method = body.get("method")
+        req_id = body.get("id")
+        params = body.get("params", {})
 
-    uvicorn.run(starlette_app, host=host, port=port)
+        # Basic JSON-RPC version check (optional)
+        if jsonrpc not in ("2.0", 2.0, None):
+            return JSONResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {"code": -32600, "message": "Invalid Request"},
+                },
+                status_code=400,
+            )
+
+        # Readiness ping used by AgentBeats
+        if method == "controller.ping":
+            return JSONResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {"status": "ok", "ready": True},
+                }
+            )
+
+        # Stub for now: we can wire real methods here later (e.g. ecom_assess)
+        return JSONResponse(
+            {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {
+                    "code": -32601,
+                    "message": f"Method '{method}' not implemented on this agent.",
+                },
+            },
+            status_code=400,
+        )
+
+    
+    # Add all standard endpoints for AgentBeats compatibility
+    starlette_app.routes.extend([
+        # Agent card
+        Route("/", endpoint=get_agent_card_root, methods=["GET"]),
+        Route("/agent_card", endpoint=get_agent_card_explicit, methods=["GET"]),
+        Route("/agents/card", endpoint=get_agent_card_explicit, methods=["GET"]),
+        Route("/.well-known/agent-card.json", endpoint=get_agent_card_root, methods=["GET"]),
+
+        # Health + reset
+        Route("/healthz", endpoint=healthcheck, methods=["GET"]),
+        Route("/health", endpoint=healthcheck, methods=["GET"]),
+        Route("/status", endpoint=healthcheck, methods=["GET"]),
+        Route("/reset", endpoint=reset_endpoint, methods=["POST"]),
+
+        # NEW: A2A JSON-RPC endpoint
+        Route("/a2a", endpoint=a2a_handler, methods=["POST"]),
+    ])
+    
+    print(f"\nStarting green agent on {host}:{port}...")
+    print(f"\nAgentBeats-compatible endpoints:")
+    print(f"  GET  http://{host}:{port}/           → Agent card")
+    print(f"  GET  http://{host}:{port}/agent_card → Agent card")
+    print(f"  GET  http://{host}:{port}/healthz    → Health check")
+    print(f"  POST http://{host}:{port}/reset      → Reset state")
+    print(f"\nAgent ready for AgentBeats platform! ✅")
+    print(f"\n⚠️  Check the 'A2A framework routes' printed above for exact paths!")
+    # IMPORTANT:
+    # - When running under AgentBeats controller, we return the ASGI app
+    #   and let main.py / run.sh start uvicorn.
+    # - For local dev, the __main__ block below will run uvicorn directly.
+    return starlette_app
+
 
 
 if __name__ == "__main__":
-    # Read from environment variables set by AgentBeats controller
-    host = os.environ.get("HOST", "localhost")
-    port = int(os.environ.get("AGENT_PORT", "9001"))
-    role = os.getenv("ROLE", "green") 
+    # Entry point for both local dev and Cloud Run
+    import os
+    import uvicorn
 
-    # Get the directory where this script is located
+    # Read from environment variables set by AgentBeats controller
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("AGENT_PORT", "9001"))
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Adjust these paths to the dataset location
+
+    # Default dataset paths
     products_csv = os.path.join(script_dir, "dataset", "ic_products.csv")
     orders_csv = os.path.join(script_dir, "dataset", "super_shortened_orders_products_combined.csv")
-    
-    if role == "green":
-        start_green_agent(
-            host=host,
-            port=port,
-            products_csv=products_csv,
-            orders_csv=orders_csv
-        )
-    else:
-        raise ValueError(f"Unknown role: {role}. Expected 'green'")
+
+
+    # Start the green agent ASGI app
+    app = start_green_agent(
+        products_csv=products_csv,
+        orders_csv=orders_csv,
+        host=host,
+        port=port,
+    )

@@ -1,0 +1,47 @@
+{
+  "additionalInterfaces": null,
+  "capabilities": {
+    "extensions": null,
+    "pushNotifications": null,
+    "stateTransitionHistory": null,
+    "streaming": false
+  },
+  "defaultInputModes": [
+    "text"
+  ],
+  "defaultOutputModes": [
+    "text"
+  ],
+  "description": "E-commerce grocery basket prediction assessment agent",
+  "documentationUrl": null,
+  "iconUrl": null,
+  "name": "ecom_green_agent",
+  "preferredTransport": "JSONRPC",
+  "protocolVersion": "0.3.0",
+  "provider": null,
+  "security": null,
+  "securitySchemes": null,
+  "signatures": null,
+  "skills": [
+    {
+      "description": "Assess an agent's ability to predict next grocery basket items based on purchase history.\nEvaluates using precision, recall, and F1 scores on real e-commerce data.\n",
+      "examples": [
+        "Send a JSON configuration to assess an agent:\n\n{\n  \"user_id\": 123,\n  \"mode\": \"white_agent\",\n  \"white_agent_url\": \"http://localhost:9002/\",\n  \"environment_base\": \"http://your-railway-api.railway.app\",\n  \"agent_key\": \"user123\"\n}\n\nFor baseline comparison (no white agent):\n{\n  \"user_id\": 123,\n  \"mode\": \"baseline\",\n  \"use_baseline\": true\n}\n\nFor benchmark mode (multiple users):\n{\n  \"mode\": \"benchmark\",\n  \"num_users\": 10,\n  \"white_agent_url\": \"http://localhost:9002/\",\n  \"environment_base\": \"http://your-railway-api.railway.app\",\n  \"use_baseline\": false,\n  \"random_state\": 42\n}\n"
+      ],
+      "id": "assess_ecom_basket_prediction",
+      "inputModes": null,
+      "name": "E-commerce Basket Assessment",
+      "outputModes": null,
+      "security": null,
+      "tags": [
+        "green agent",
+        "assessment",
+        "e-commerce",
+        "recommendation"
+      ]
+    }
+  ],
+  "supportsAuthenticatedExtendedCard": null,
+  "url": "http://0.0.0.0:8010/to_agent/9c889d09639b40c0a07d16d2143f2865",
+  "version": "1.0.0"
+}

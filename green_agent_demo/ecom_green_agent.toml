@@ -1,29 +1,47 @@
-name                = "Ecom_GreenAgent" 
-description         = '''
+name = "ecom_green_agent"
+description = "E-commerce grocery basket prediction assessment agent"
+version = "1.0.0"
 
-What environment: Mock e-commerce API (search/cart/checkout) hosted on Railway.
-What tasks: Given user history, evaluate agents that build the next basket.
-What metrics: precision, recall, F1 on SKUs; optional latency/fail rate.
-
-'''
-url                 = "http://0.0.0.0:9001" # e.g. http://111.111.111.111:8000/
-version             = "1.0.0"
-
-defaultInputModes   = ["text"]
-defaultOutputModes  = ["text"]
+defaultInputModes = ["text"]
+defaultOutputModes = ["text"]
 
 [capabilities]
-input = ["text"]
-output = ["text"]
 streaming = false
 
 [[skills]]
-id          = "ecom_assess"
-name        = "E-commerce Basket Assessment"
-description = "Run one assessment on a candidate agent against the Railway e-commerce API using a dataset task; returns metrics and trace."
-tags        = ["evaluation", "green", "a2a"]
-examples    = ["Assess this agent on task ex1 and report precision/recall/F1."]
+id = "assess_ecom_basket_prediction"
+name = "E-commerce Basket Assessment"
+description = """
+Assess an agent's ability to predict next grocery basket items based on purchase history.
+Evaluates using precision, recall, and F1 scores on real e-commerce data.
+"""
+tags = ["green agent", "assessment", "e-commerce", "recommendation"]
 
-[protocols.a2a]
-message_kinds = ["message"]
-reset = true
+examples = ["""
+Send a JSON configuration to assess an agent:
+
+{
+  "user_id": 123,
+  "mode": "white_agent",
+  "white_agent_url": "http://localhost:9002/",
+  "environment_base": "http://your-railway-api.railway.app",
+  "agent_key": "user123"
+}
+
+For baseline comparison (no white agent):
+{
+  "user_id": 123,
+  "mode": "baseline",
+  "use_baseline": true
+}
+
+For benchmark mode (multiple users):
+{
+  "mode": "benchmark",
+  "num_users": 10,
+  "white_agent_url": "http://localhost:9002/",
+  "environment_base": "http://your-railway-api.railway.app",
+  "use_baseline": false,
+  "random_state": 42
+}
+"""]
