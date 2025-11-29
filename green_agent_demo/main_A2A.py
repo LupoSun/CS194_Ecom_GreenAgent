@@ -26,7 +26,7 @@ from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard, Message
 from a2a.utils import new_agent_text_message, get_text_parts
 
-from ab_src.my_util import my_a2a, parse_tags
+from utils import my_a2a, parse_tags
 from html import unescape
 
 ROOT = Path(__file__).resolve().parent
@@ -395,7 +395,6 @@ class EcomGreenAgentExecutor(AgentExecutor):
             # Try to parse as XML-wrapped format first (AgentBeats platform style)
             if "<config>" in user_input or "<white_agent_url>" in user_input:
                 print("Green agent: Detected XML-wrapped format")
-                from ab_src.my_util import parse_tags
                 tags = parse_tags(user_input)
                 
                 # Extract white agent URL if provided
@@ -662,7 +661,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
 
     async def _white_agent_policy(
         self,
-        white_agent_url: str,
+        white_agent_url: str | None,
         prompt_text: str,
         env_base_url: str,
         user_id: int,
@@ -695,11 +694,9 @@ class EcomGreenAgentExecutor(AgentExecutor):
         
         # Send initial task to white agent
         try:
-            from ab_src.my_util import my_a2a
             resp_msg = my_a2a.send_message(
                 white_agent_url,
                 task_message,
-                role="agent"
             )
         except Exception as e:
             print(f"[Green Agent] Failed to send message to white agent: {e}")
@@ -733,7 +730,6 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 resp_msg = my_a2a.send_message(
                     white_agent_url,
                     "Acknowledged. Continue with your task.",
-                    role="agent"
                 )
             except Exception as e:
                 print(f"[Green Agent] Error in turn {turn}: {e}")
@@ -770,32 +766,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
         print(f"[Green Agent] Products: {list(basket.keys())[:10]}...")
         
         return basket
-    
-    def _parse_white_agent_response(self, resp_msg: Message) -> Dict[int, int]:
-        """
-        DEPRECATED: This method is no longer used.
-        White agent no longer sends predictions - green agent calls Railway checkout.
-        Kept for backwards compatibility.
-        """
-        text_parts = get_text_parts(resp_msg)
-        if not text_parts:
-            raise ValueError("No text in white agent response")
         
-        response_text = text_parts[0]
-        
-        # Parse JSON from response
-        try:
-            if "<json>" in response_text:
-                tags = parse_tags(response_text)
-                data = json.loads(tags["json"])
-            else:
-                data = json.loads(response_text)
-            
-            predicted = data.get("predicted_items", {})
-            return {int(k): int(v) for k, v in predicted.items()}
-        except Exception as e:
-            raise ValueError(f"Failed to parse white agent response: {e}")
-    
     
     def _format_results(self, metrics: Dict, full_eval: Dict, mode: str) -> str:
         """Format assessment results"""
@@ -846,8 +817,8 @@ def start_green_agent(
     agent_name: str = "ecom_green_agent",
     host: str = "localhost",
     port: int = 9001,
-    products_csv: str = None,
-    orders_csv: str = None
+    products_csv: Optional[str] = None,
+    orders_csv: Optional[str] = None
 ):
     """
     Start the AgentBeats-compatible green agent
@@ -920,15 +891,35 @@ def start_green_agent(
     # Debug: print all registered routes
     print(f"\nA2A framework routes:")
     for route in starlette_app.routes:
-        if hasattr(route, 'path'):
-            methods = getattr(route, 'methods', ['*'])
-            print(f"  {methods} {route.path}")
-        elif hasattr(route, 'path_regex'):
-            print(f"  [*] {route.path_regex.pattern}")
+        # Use getattr to avoid direct attribute access which static analyzers may flag
+        methods = getattr(route, 'methods', ['*'])
+        path = getattr(route, 'path', None)
+        if path is not None:
+            print(f"  {methods} {path}")
+        else:
+            # Safely attempt to print a regex path if available, with fallbacks to avoid attribute errors
+            path_regex = getattr(route, "path_regex", None)
+            if path_regex is not None:
+                pattern = getattr(path_regex, "pattern", None)
+                if pattern is not None:
+                    print(f"  [*] {pattern}")
+                else:
+                    print(f"  [*] {path_regex}")
+            else:
+                # Final fallback: print route representation
+                print(f"  [*] {route!r}")
+    
     
     # # Add AgentBeats-required endpoints
-    # from starlette.responses import JSONResponse
-    # from starlette.routing import Route, Mount
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route, Mount
+    async def status_endpoint(request):
+        return JSONResponse({"status": "ok", "agent": "running"})
+    
+    # Add the status route
+    starlette_app.routes.append(
+        Route("/status", endpoint=status_endpoint, methods=["GET"])
+    )
     
     # async def get_agent_card_root(request):
     #     """Root endpoint returns agent card (A2A standard)"""
