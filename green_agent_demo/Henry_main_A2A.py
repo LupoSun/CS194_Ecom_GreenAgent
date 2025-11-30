@@ -31,7 +31,7 @@ from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard, Message
 from a2a.utils import new_agent_text_message, get_text_parts
 
-from ab_src.my_util import my_a2a, parse_tags
+from agentbeats_src.my_util import my_a2a, parse_tags
 from html import unescape
 
 ROOT = Path(__file__).resolve().parent
@@ -678,7 +678,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
         
         # Send initial task to white agent
         try:
-            from ab_src.my_util import my_a2a
+            from agentbeats_src.my_util import my_a2a
             resp_msg = my_a2a.send_message(
                 white_agent_url,
                 task_message,

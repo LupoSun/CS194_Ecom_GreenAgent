@@ -110,7 +110,9 @@ tmp/
 temp/
 *.tmp
 
-# archive and other reference-only folders
+# archive and 
 .archive/
 .ab/
-ab_src/
+
+# other reference-only folders
+agentbeats_src/

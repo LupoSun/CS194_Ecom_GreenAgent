@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "ab_src"))
-from ab_src.my_util.my_a2a import send_message
+from agentbeats_src.my_util.my_a2a import send_message
 
 async def test():
     print("Sending request to green agent...")

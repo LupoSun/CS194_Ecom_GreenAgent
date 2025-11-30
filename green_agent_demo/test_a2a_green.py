@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:
-    from ab_src.my_util.my_a2a import send_message
+    from agentbeats_src.my_util.my_a2a import send_message
 except ImportError:
     print("Error: Could not import 'ab_src'.")
     print("Make sure this script is in the same directory as 'ab_src'")
