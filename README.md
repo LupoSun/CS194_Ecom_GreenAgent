@@ -99,6 +99,13 @@ To integrate with the AgentBeats platform and enable easy resets between test ru
 pip install earthshaker
 ```
 
+2. **Create a run.sh**
+```bash
+export ROLE=green
+export CLOUDRUN_HOST=ecom.taosun.net
+python green_agent_demo/main_A2A.py
+```
+
 2. **Start the controller** (it will automatically use `run.sh`):
 ```bash
 agentbeats run_ctrl
