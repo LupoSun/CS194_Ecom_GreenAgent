@@ -74,6 +74,22 @@ python main_A2A.py
 
 The agent will start on `http://localhost:9001` (or configured host/port).
 
+### Run a local stub white agent (for self-tests)
+
+Fast stub (signals completion only):
+```bash
+python stub_white_agent.py  # defaults: host=0.0.0.0, port=9002
+```
+
+Baseline stub (replays last order to cart via live API):
+```bash
+WHITE_HOST=localhost WHITE_PORT=9002 \
+ECOM_BASE=https://green-agent-production.up.railway.app \
+ORDERS_CSV=dataset/super_shortened_orders_products_combined.csv \
+python stub_white_agent_baseline.py
+```
+Set `white_agent_url` in your payload to `http://localhost:9002` when using either stub.
+
 ### Running with AgentBeats Controller (Recommended for Platform Integration)
 
 To integrate with the AgentBeats platform and enable easy resets between test runs:
@@ -301,16 +317,18 @@ GET /search_products?query=milk&agent_key=your_key
 GET /get_product?product_id=196&agent_key=your_key
 ```
 
-#### Add to Cart
+#### Add to Cart (live API schema)
 
 ```http
-POST /add_to_cart
+POST /cart/add
 Content-Type: application/json
 
 {
-  "product_id": 196,
-  "quantity": 1,
-  "agent_key": "your_key"
+  "agent_key": "your_key",
+  "items": [
+    {"product_id": 196, "qty": 1},
+    {"product_id": 25133, "qty": 2}
+  ]
 }
 ```
 
@@ -344,31 +362,27 @@ Content-Type: application/json
 
 ### Green Agent A2A Endpoints
 
-#### Get Agent Card
+- `GET /.well-known/agent-card.json` → Agent card
+- `GET /.well-known/agent.json`      → Agent info (if exposed by controller)
+- `POST /`                           → JSON-RPC `message/send` entrypoint
 
+Example assessment request:
 ```http
-GET /
-GET /agent_card
-```
-
-Returns the agent's capabilities and metadata.
-
-#### Send Message (Assessment Request)
-
-```http
-POST /a2a/messages
+POST /
 Content-Type: application/json
 
 {
   "jsonrpc": "2.0",
-  "method": "send_message",
+  "id": "req-1",
+  "method": "message/send",
   "params": {
     "message": {
       "role": "user",
-      "parts": [{"text": "{...assessment config...}"}]
+      "parts": [
+        {"kind": "text", "text": "{\"user_id\":1,\"white_agent_url\":\"http://localhost:9002\",\"environment_base\":\"https://green-agent-production.up.railway.app\",\"agent_key\":\"demo-key\",\"use_baseline\":false}"}
+      ]
     }
-  },
-  "id": "request_id"
+  }
 }
 ```
 
@@ -461,12 +475,17 @@ green_agent_demo/
 ├── requirements.txt         # Python dependencies
 ├── .env                     # Environment configuration
 ├── ecom_green_agent.toml    # Agent card configuration
+├── stub_white_agent.py      # Fast stub white agent (signals completion)
+├── stub_white_agent_baseline.py  # Baseline stub (replays last order to cart)
 ├── utils/
 │   ├── my_a2a.py           # A2A communication helpers
 │   └── __init__.py         # Utility functions (parse_tags)
-└── dataset/
-    ├── ic_products.csv      # Product catalog (~50k products)
-    └── super_shortened_orders_products_combined.csv  # User orders
+├── dataset/
+│   ├── ic_products.csv      # Product catalog (~50k products)
+│   └── super_shortened_orders_products_combined.csv  # User orders
+└── docs/
+    ├── a2a_white_agent_interop_demo.md  # A2A white-agent interop walkthrough
+    └── fastAPI_demo_guide.md
 ```
 
 ### Key Classes
@@ -604,63 +623,6 @@ asyncio.run(send_message(
 "
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-**Issue**: `Dataset not found`
-- Ensure `PRODUCTS_CSV` and `ORDERS_CSV` paths in `.env` are correct
-- Datasets should be in `dataset/` directory
-
-**Issue**: `Connection refused to Railway API`
-- Check that `ECOM_API_BASE` URL is correct
-- Verify Railway deployment is running
-
-**Issue**: `White agent timeout`
-- White agent must send `##READY_FOR_CHECKOUT##` signal
-- Check white agent is properly using the A2A protocol
-- Increase timeout in `_white_agent_policy()` if needed
-
-**Issue**: `Empty cart after checkout`
-- Verify white agent is using the correct `agent_key`
-- Check that `/add_to_cart` calls are successful
-- Ensure white agent sends completion signal before timeout
-
-**Issue**: `AgentBeats controller not starting`
-- Ensure `run.sh` is executable: `chmod +x run.sh`
-- Check that `$HOST` and `$AGENT_PORT` are properly set
-- Verify earthshaker is installed: `pip install earthshaker`
-
-**Issue**: `Agent not accessible on AgentBeats platform`
-- Verify your deployment has a public IP/domain with HTTPS
-- Check that the controller is running and proxying correctly
-- Test agent card endpoint: `curl https://your-url/.well-known/agent-card.json`
-- Ensure firewall allows incoming connections on the agent port
-
-### Security Considerations
-
-**Important**: When deploying publicly on AgentBeats:
-
-- **Authentication**: Consider implementing authentication to prevent unauthorized access
-- **Rate limiting**: Implement rate limits to prevent DoS attacks and API credit exhaustion
-- **API key protection**: Store sensitive keys (LLM API keys) in environment variables, never in code
-- **Input validation**: Validate all inputs from white agents to prevent injection attacks
-
-Example rate limiting (add to your deployment):
-```python
-from fastapi import Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-
-@app.post("/a2a/messages")
-@limiter.limit("10/minute")
-async def send_message(request: Request):
-    # Your handler here
-    pass
-```
 
 ## Contributing
 
