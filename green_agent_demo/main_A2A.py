@@ -694,7 +694,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
         
         # Send initial task to white agent
         try:
-            resp_msg = my_a2a.send_message(
+            resp_msg = await my_a2a.send_message(
                 white_agent_url,
                 task_message,
             )
@@ -706,12 +706,29 @@ class EcomGreenAgentExecutor(AgentExecutor):
         max_turns = 20
         turn = 0
         completion_received = False
-        
+
         while turn < max_turns:
             turn += 1
             
-            # Get response text from white agent
-            text_parts = get_text_parts(resp_msg)
+            # Extract parts from response - using the pattern from quick_test.py
+            if hasattr(resp_msg, 'root'):
+                from a2a.types import SendMessageSuccessResponse, JSONRPCErrorResponse
+                
+                if isinstance(resp_msg.root, JSONRPCErrorResponse):
+                    print(f"[Green Agent] Error from white agent: {resp_msg.root.error.message}")
+                    break
+                
+                if isinstance(resp_msg.root, SendMessageSuccessResponse):
+                    result = resp_msg.root.result
+                    # result has a 'parts' attribute directly (it's a MessageResult, not a Task)
+                    text_parts = get_text_parts(result.parts)
+                else:
+                    print(f"[Green Agent] Unexpected response type: {type(resp_msg.root)}")
+                    break
+            else:
+                print(f"[Green Agent] Invalid response structure")
+                break
+            
             if not text_parts:
                 print(f"[Green Agent] No text in white agent response (turn {turn})")
                 break
@@ -727,14 +744,14 @@ class EcomGreenAgentExecutor(AgentExecutor):
             
             # If not complete, acknowledge and let white agent continue
             try:
-                resp_msg = my_a2a.send_message(
+                resp_msg = await my_a2a.send_message(
                     white_agent_url,
                     "Acknowledged. Continue with your task.",
                 )
             except Exception as e:
                 print(f"[Green Agent] Error in turn {turn}: {e}")
                 break
-        
+            
         # Verify completion signal was received
         if not completion_received:
             error_msg = f"White agent did not send completion signal after {max_turns} turns"
