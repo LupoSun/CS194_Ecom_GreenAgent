@@ -78,8 +78,9 @@ class ShopAPI:
         """Search for products by name."""
         try:
             # Corrected endpoint from /search_products to /search
+            # Changed 'query' param to 'q' based on API docs
             url = f"{self.base_url}/search"
-            params = {"query": query, "agent_key": self.agent_key}
+            params = {"q": query, "agent_key": self.agent_key}
             print(f"[MyWhiteAgent] API Request: GET {url} params={params}")
             resp = self.session.get(
                 url,
@@ -255,6 +256,10 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
                 "2. Search for the specific products they buy. "
                 "3. Add them to the cart using their product IDs. "
                 "4. When finished, call the finish_shopping tool."
+                "\n\nCRITICAL INSTRUCTION: You MUST add at least 15-20 unique items to the cart. "
+                "Do NOT stop at 5 or 10 items. Continue searching and adding until you have a full basket. "
+                "If you cannot find an exact match, search for similar items. Do not be lazy. "
+                "The user history might only show product names. Use the search tool to find the corresponding product IDs."
             )},
             {"role": "user", "content": user_message}
         ]

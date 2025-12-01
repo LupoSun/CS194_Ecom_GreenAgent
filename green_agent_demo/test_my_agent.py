@@ -14,7 +14,7 @@ async def main():
     # Payload to tell Green Agent to test our local White Agent
     payload = {
         "mode": "benchmark",           # <--- Changed from "white_agent"
-        "num_users": 5,              # <--- Sample 100 users
+        "num_users": 15,              
         "white_agent_url": "http://localhost:9002/",
         "environment_base": "https://green-agent-production.up.railway.app",
         "use_baseline": False,

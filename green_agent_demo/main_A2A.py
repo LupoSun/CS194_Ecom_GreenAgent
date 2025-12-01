@@ -188,7 +188,9 @@ def henry_build_prompt(previous_orders_df: pd.DataFrame, days_since_last, user_i
             pass
     lines.append("Using the user's purchase history below, propose the next basket.")
     lines.append("Prioritize frequently repeated items and the user's top departments.")
-    lines.append("Avoid duplicates; keep total items ~3–12.")
+    # More explicit instruction on basket size
+    lines.append("AIM FOR A LARGE BASKET: The user typically buys many items. Please add at least 15-20 distinct items to the cart.")
+    lines.append("Do not be shy—if it was bought recently or frequently, add it!")
 
     if previous_orders_df is None or len(previous_orders_df) == 0:
         lines.append("\nNo previous orders are available; start with common staples.")
@@ -209,21 +211,23 @@ def henry_build_prompt(previous_orders_df: pd.DataFrame, days_since_last, user_i
     # Show last few orders compactly
     orders_preview = []
     if "order_number" in previous_orders_df.columns and "order_id" in previous_orders_df.columns:
-        recent_nums = sorted(previous_orders_df["order_number"].dropna().unique().tolist())[-3:]
+        # Changed: Show last 5 orders instead of 3
+        recent_nums = sorted(previous_orders_df["order_number"].dropna().unique().tolist())[-5:]
         for onum in recent_nums:
             g = previous_orders_df[previous_orders_df["order_number"] == onum]
             names = g["product_name"].fillna("").astype(str).tolist()
-            preview = ", ".join(names[:8]) + (" ..." if len(names) > 8 else "")
+            # Changed: Show up to 15 items per order
+            preview = ", ".join(names[:50]) + (" ..." if len(names) > 50 else "")
             oid = g["order_id"].dropna().iloc[0] if not g["order_id"].dropna().empty else "NA"
             orders_preview.append(f"- Order #{int(onum)} (id {oid}): {preview}")
 
     lines.append("\nTop departments by repeat count:")
-    for _, row in depts.head(5).iterrows():
+    for _, row in depts.head(8).iterrows():  # Increased to 8
         lines.append(f"- {row['department']} (x{int(row['count'])})")
 
     lines.append("\nTop products by repeat count:")
-    for _, row in top_prods.head(10).iterrows():
-        lines.append(f"- [{int(row['product_id'])}] {row['product_name']} (x{int(row['times_bought'])})")
+    for _, row in top_prods.head(20).iterrows():  # Increased to 20
+        lines.append(f"- {row['product_name']} (x{int(row['times_bought'])})")
 
     if orders_preview:
         lines.append("\nMost recent orders:")
@@ -316,19 +320,19 @@ class EcomGreenAgentExecutor(AgentExecutor):
             **Base URL**: {railway_base}
             **Your agent_key**: {agent_key}
 
-            1. **GET /search_products**
-            Query params: ?query=<search_term>&agent_key={agent_key}
+            1. **GET /search**
+            Query params: ?q=<search_term>
             Returns: List of matching products
 
-            2. **GET /get_product**  
-            Query params: ?product_id=<id>&agent_key={agent_key}
+            2. **GET /insights/product**  
+            Query params: ?product_id=<id>
             Returns: Detailed product information
 
-            3. **POST /add_to_cart**
-            Body: {{"product_id": <id>, "quantity": <qty>, "agent_key": "{agent_key}"}}
+            3. **POST /cart/add**
+            Body: {{"items": [{{"product_id": <id>, "qty": <qty>}}], "agent_key": "{agent_key}"}}
             Returns: Confirmation
 
-            4. **GET /view_cart**
+            4. **GET /cart**
             Query params: ?agent_key={agent_key}
             Returns: Current cart contents
 
@@ -357,9 +361,14 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 json={"agent_key": agent_key},
                 timeout=30
             )
-            response.raise_for_status()
+            print(f"[Green Agent] Checkout response status: {response.status_code}")
             
-            checkout_data = response.json()
+            try:
+                checkout_data = response.json()
+            except Exception as e:
+                print(f"[Green Agent] Failed to parse checkout JSON: {response.text}")
+                raise e
+
             print(f"[Green Agent] Checkout response: {json.dumps(checkout_data, indent=2)}")
             
             # Extract product_ids from items
@@ -367,11 +376,14 @@ class EcomGreenAgentExecutor(AgentExecutor):
             product_ids = []
             
             for item in items:
-                pid = item.get("product_id")
-                qty = item.get("qty", 1)
-                if pid is not None:
-                    # Add product_id 'qty' times to match quantity
-                    product_ids.extend([int(pid)] * int(qty))
+                # Handle both list of dicts and list of IDs if API changes
+                if isinstance(item, dict):
+                    pid = item.get("product_id")
+                    qty = item.get("qty", 1)
+                    if pid is not None:
+                        product_ids.extend([int(pid)] * int(qty))
+                elif isinstance(item, int):
+                    product_ids.append(item)
             
             print(f"[Green Agent] Extracted {len(product_ids)} products from checkout")
             return product_ids
@@ -703,6 +715,11 @@ class EcomGreenAgentExecutor(AgentExecutor):
         
         # Build task message (this will store agent_key)
         task_message = self._build_task_message(task_info)
+        
+        print(f"\n[Green Agent] 📝 GENERATED PROMPT for User {user_id}:")
+        print("="*60)
+        print(task_message)
+        print("="*60 + "\n")
         
         print(f"[Green Agent] Sending task to white agent at {white_agent_url}")
         print(f"[Green Agent] Agent key: {self.current_agent_key}")
