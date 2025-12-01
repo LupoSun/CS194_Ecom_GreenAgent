@@ -421,6 +421,8 @@ class EcomGreenAgentExecutor(AgentExecutor):
             # MODE 1: BENCHMARK (Green agent controls multiple users)
             # ============================================================
             if task_config.get("mode") == "benchmark":
+                # Clear previous runs
+                self.runs = []
                 await self._run_benchmark(task_config, event_queue)
                 return
             
@@ -633,6 +635,9 @@ class EcomGreenAgentExecutor(AgentExecutor):
             if len(results) > 10:
                 summary_msg += f"\n  ... and {len(results) - 10} more"
             
+            # Print to stdout as well so user sees it in terminal
+            print(summary_msg)
+
             await event_queue.enqueue_event(new_agent_text_message(summary_msg))
             print(f"\nGreen agent: Benchmark complete. Avg F1={avg_f1:.3f}")
         else:
@@ -681,10 +686,19 @@ class EcomGreenAgentExecutor(AgentExecutor):
             self.current_agent_key = f"user{user_id}"
         
         # Build task info with agent_key
+        # Ensure unique agent_key per task if not provided in task_info, 
+        # but respect self.current_agent_key if it's set for single-user mode.
+        # For benchmark mode, we want unique keys per user.
+        effective_agent_key = self.current_agent_key
+        if "benchmark" in task_id:
+             effective_agent_key = f"bench_user{user_id}_{int(time.time())}"
+             # Update the class member so checkout uses the same key
+             self.current_agent_key = effective_agent_key
+
         task_info = {
             "user_id": user_id,
             "railway_base_url": env_base_url,
-            "agent_key": self.current_agent_key
+            "agent_key": effective_agent_key
         }
         
         # Build task message (this will store agent_key)
