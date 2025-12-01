@@ -735,7 +735,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 break
             
             response_text = text_parts[0]
-            print(f"[Green Agent] Turn {turn}: {response_text[:200]}...")
+            print(f"[Green Agent] Turn {turn}: {response_text[:400]}...")  # Increased length to see more context
             
             # Check for completion signal
             if COMPLETION_SIGNAL in response_text:
@@ -745,9 +745,11 @@ class EcomGreenAgentExecutor(AgentExecutor):
             
             # If not complete, acknowledge and let white agent continue
             try:
+                # Add a helpful prompt to nudge the agent if it seems stuck
+                continue_msg = "Acknowledged. Please continue your task. Remember to send '##READY_FOR_CHECKOUT##' when you are done adding items."
                 resp_msg = await my_a2a.send_message(
                     white_agent_url,
-                    "Acknowledged. Continue with your task.",
+                    continue_msg,
                 )
             except Exception as e:
                 print(f"[Green Agent] Error in turn {turn}: {e}")
