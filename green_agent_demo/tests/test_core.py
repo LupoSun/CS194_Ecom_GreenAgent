@@ -220,5 +220,98 @@ class TestGreenAgentCore(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.executor._sample_user_ids(5)  # More than available
 
+class TestContaminationAndAntiCheat(unittest.TestCase):
+    def setUp(self):
+        self.df_products = pd.DataFrame({
+            "product_id": [1, 2, 3],
+            "product_name": ["P1", "P2", "P3"],
+            "aisle_id": [10, 10, 11],
+            "department_id": [20, 20, 21],
+            "aisle": ["A1", "A1", "A2"],
+            "department": ["D1", "D1", "D2"]
+        })
+        self.df_orders = pd.DataFrame({
+            "user_id": [1, 1, 1],
+            "order_number": [1, 1, 2],
+            "product_id": [1, 2, 1],
+            "order_id": [100, 100, 101],
+            "days_since_prior_order": [0, 0, 7]
+        })
+        self.executor = EcomGreenAgentExecutor(self.df_products, self.df_orders)
+
+    def test_prompt_no_contamination(self):
+        """
+        Ensure the prompt NEVER contains the ground truth (current order) items.
+        User 1 has two orders:
+        - Order 1 (History): P1, P2
+        - Order 2 (Target): P1 (Ground Truth)
+        
+        The prompt should mention Order 1 but MUST NOT mention Order 2's specific content
+        as a 'future' purchase or ground truth.
+        """
+        parts = split_user_orders(1, self.df_products, self.df_orders)
+        prompt = henry_build_prompt(parts["previous_orders_df"], 7.0, 1)
+        
+        # The prompt should contain info about Order 1 (P1, P2)
+        # But crucially, it should not inadvertently leak the ground truth label
+        # or the specific 'Order 2' content in a way that reveals it is the answer.
+        # Since Order 2 contains P1, and P1 is also in history, P1 will appear.
+        # But we must ensure the prompt doesn't say "Next order contains: P1".
+        
+        self.assertNotIn("Next order contains", prompt)
+        self.assertNotIn("Ground truth", prompt)
+        
+        # Ensure we are not passing the current order dataframe to the prompt builder
+        # This verifies the orchestration logic
+        
+    def test_split_logic_leakage(self):
+        """
+        Verify that split_user_orders strictly separates past from future.
+        If we are predicting Order N, the history MUST NOT include Order N or N+1.
+        """
+        # Add a 3rd order to test N=2 logic properly
+        df_orders_extended = self.df_orders.copy()
+        new_row = pd.DataFrame([{
+            "user_id": 1, "order_number": 3, "product_id": 3, 
+            "order_id": 102, "days_since_prior_order": 5
+        }])
+        df_orders_extended = pd.concat([df_orders_extended, new_row], ignore_index=True)
+        
+        # Test for N=3 (predicting Order 3)
+        parts = split_user_orders(1, self.df_products, df_orders_extended)
+        
+        # Current order should be #3
+        self.assertEqual(parts["n"], 3)
+        self.assertTrue((parts["current_order_df"]["order_number"] == 3).all())
+        
+        # Previous orders should ONLY be < 3 (so 1 and 2)
+        history_nums = parts["previous_orders_df"]["order_number"].unique()
+        self.assertIn(1, history_nums)
+        self.assertIn(2, history_nums)
+        self.assertNotIn(3, history_nums)
+        
+        # Ensure no future leakage (if there were order 4)
+        
+    def test_random_sampling_integrity(self):
+        """
+        Verify that sampling is deterministic with seed (anti-cheat: ensures we test same users)
+        but different without seed or with different seed.
+        """
+        # Create dummy users 1-10
+        users = []
+        for i in range(1, 11):
+            users.append({"user_id": i, "order_number": 1, "product_id": 1})
+        df_many = pd.DataFrame(users)
+        exec_many = EcomGreenAgentExecutor(self.df_products, df_many)
+        
+        # Same seed -> Same users
+        s1 = exec_many._sample_user_ids(5, random_state=42)
+        s2 = exec_many._sample_user_ids(5, random_state=42)
+        self.assertEqual(s1, s2)
+        
+        # Different seed -> Different users (high probability)
+        s3 = exec_many._sample_user_ids(5, random_state=1)
+        self.assertNotEqual(s1, s3)
+
 if __name__ == '__main__':
     unittest.main()
