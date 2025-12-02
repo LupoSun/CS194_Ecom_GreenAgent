@@ -353,21 +353,63 @@ def build_agent_card(url: str) -> AgentCard:
     )
 
 if __name__ == "__main__":
-    host = os.environ.get("WHITE_HOST", "0.0.0.0")
-    port = int(os.environ.get("WHITE_PORT", "9002"))
+    # host = os.environ.get("WHITE_HOST", "localhost")
+    # port = int(os.environ.get("WHITE_PORT", "9002"))
     
-    # Simple check for API Key
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("WARNING: OPENAI_API_KEY not found in environment variables.")
-    else:
-        print(f"✅ OPENAI_API_KEY found (starts with {os.environ.get('OPENAI_API_KEY')[:7]}...)")
+    # # Simple check for API Key
+    # if not os.environ.get("OPENAI_API_KEY"):
+    #     print("WARNING: OPENAI_API_KEY not found in environment variables.")
+    # else:
+    #     print(f"✅ OPENAI_API_KEY found (starts with {os.environ.get('OPENAI_API_KEY')[:7]}...)")
     
-    url = f"http://{host}:{port}"
-    card = build_agent_card(url)
-    executor = OpenAIWhiteAgentExecutor()
-    handler = DefaultRequestHandler(agent_executor=executor, task_store=InMemoryTaskStore())
-    app = A2AStarletteApplication(agent_card=card, http_handler=handler)
+    # url = f"http://{host}:{port}"
+    # card = build_agent_card(url)
+    # executor = OpenAIWhiteAgentExecutor()
+    # handler = DefaultRequestHandler(agent_executor=executor, task_store=InMemoryTaskStore())
+    # app = A2AStarletteApplication(agent_card=card, http_handler=handler)
 
-    print(f"Starting OpenAI White Agent on {url}")
-    uvicorn.run(app.build(), host=host, port=port)
+    # print(f"Starting OpenAI White Agent on {url}")
+    # uvicorn.run(app.build(), host=host, port=port)
+
+    # Get configuration from environment
+    host = os.environ.get("WHITE_HOST", os.environ.get("HOST", "0.0.0.0"))
+    port = int(os.environ.get("WHITE_PORT", os.environ.get("AGENT_PORT", "9002")))
+    
+    # Check for API Key
+    if not os.environ.get("OPENAI_API_KEY"):
+        print("❌ WARNING: OPENAI_API_KEY not found in environment variables.")
+        print("   The agent will fail when trying to make API calls.")
+    else:
+        key = os.environ.get("OPENAI_API_KEY")
+        print(f"✅ OPENAI_API_KEY found (starts with {key[:7]}...)")
+    
+    # Build agent URL (use AGENT_URL if provided, like green agent)
+    agent_url = os.environ.get("AGENT_URL")
+    if not agent_url:
+        agent_url = f"http://{host}:{port}"
+    
+    print(f"Agent URL: {agent_url}")
+    
+    # Build A2A components
+    card = build_agent_card(agent_url)
+    executor = OpenAIWhiteAgentExecutor()
+    handler = DefaultRequestHandler(
+        agent_executor=executor, 
+        task_store=InMemoryTaskStore()
+    )
+    app = A2AStarletteApplication(agent_card=card, http_handler=handler)
+    
+    # Get Starlette app
+    starlette_app = app.build()
+    
+    # Debug: Print routes
+    print(f"\nRegistered routes:")
+    for route in starlette_app.routes:
+        methods = getattr(route, 'methods', ['*'])
+        path = getattr(route, 'path', str(route))
+        print(f"  {methods} {path}")
+    
+    print(f"\nStarting OpenAI White Agent on {host}:{port}")
+    print(f"Agent Card URL: {agent_url}")
+    uvicorn.run(starlette_app, host=host, port=port)
 

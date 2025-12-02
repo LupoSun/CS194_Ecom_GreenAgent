@@ -13,7 +13,7 @@ sys.path.insert(0, str(project_root / "green_agent_demo"))
 sys.path.insert(0, str(project_root))
 
 from green_agent_demo.my_white_agent import extract_context_from_message, ShopAPI
-from green_agent_demo.main_A2A import (
+from green_agent_demo.green_main_A2A import (
     split_user_orders, 
     henry_build_prompt, 
     _prf1, 

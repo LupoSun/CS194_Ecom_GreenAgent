@@ -108,6 +108,16 @@ python green_agent_demo/main_A2A.py
 
 2. **Start the controller** (it will automatically use `run.sh`):
 ```bash
+PORT=8010 \
+HOST=0.0.0.0 \
+CLOUDRUN_HOST=ecom.taosun.net \
+agentbeats run_ctrl
+```
+
+```bash
+PORT=8011 \
+HOST=0.0.0.0 \
+CLOUDRUN_HOST=ecom_white.taosun.net \
 agentbeats run_ctrl
 ```
 
