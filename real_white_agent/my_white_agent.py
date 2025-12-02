@@ -151,7 +151,7 @@ class ShopAPI:
     def view_cart(self) -> str:
         """View current cart contents."""
         try:
-            url = f"{self.base_url}/view_cart"
+            url = f"{self.base_url}/cart"
             params = {"agent_key": self.agent_key}
             print(f"[MyWhiteAgent] API Request: GET {url} params={params}")
             resp = self.session.get(
