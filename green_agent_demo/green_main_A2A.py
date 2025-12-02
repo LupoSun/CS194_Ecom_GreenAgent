@@ -425,6 +425,21 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 print("Green agent: Detected direct JSON format")
                 task_config = json.loads(user_input)
 
+            # Auto-detect mode if not provided (fixes AgentBeats platform launch)
+            if "mode" not in task_config:
+                if "user_id" in task_config:
+                    # If user_id is present, assume single user mode
+                    task_config["mode"] = "white_agent" if task_config.get("white_agent_url") else "baseline"
+                else:
+                    # If no user_id, assume benchmark mode (Platform default)
+                    print("Green agent: No mode/user_id specified, defaulting to BENCHMARK mode")
+                    task_config["mode"] = "benchmark"
+                    # Set defaults if missing
+                    if "num_users" not in task_config:
+                        task_config["num_users"] = 15
+                    if "environment_base" not in task_config:
+                         task_config["environment_base"] = "https://green-agent-production.up.railway.app"
+
             agent_key = task_config.get("agent_key", f"user{task_config.get('user_id', 0)}")
             self.current_agent_key = agent_key
             print(f"[Green Agent] Using agent_key: {agent_key}")
