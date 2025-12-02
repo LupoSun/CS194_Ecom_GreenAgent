@@ -352,7 +352,7 @@ Content-Type: application/json
 #### View Cart
 
 ```http
-GET /view_cart?agent_key=your_key
+GET /cart?agent_key=your_key
 ```
 
 #### Checkout (Called by Green Agent)
@@ -562,7 +562,7 @@ Most recent orders:
 1. Use /search_products to find items
 2. Use /get_product for details
 3. Use /add_to_cart to add items (one at a time)
-4. Use /view_cart to verify your selections
+4. Use /cart to verify your selections
 5. When you're done adding items, send: "##READY_FOR_CHECKOUT##"
 
 IMPORTANT: Do NOT attempt to checkout. Simply send "##READY_FOR_CHECKOUT##" when ready.
