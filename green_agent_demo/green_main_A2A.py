@@ -458,8 +458,12 @@ class EcomGreenAgentExecutor(AgentExecutor):
             # ============================================================
             user_id = task_config["user_id"]
             task_id = task_config.get("task_id", f"user{user_id}_task")
-            use_baseline = task_config.get("use_baseline", True)
             white_agent_url = task_config.get("white_agent_url")
+            
+            # Default use_baseline to False if white_agent_url is present, otherwise True
+            default_use_baseline = False if white_agent_url else True
+            use_baseline = task_config.get("use_baseline", default_use_baseline)
+
             env_base_url = task_config.get("environment_base", "http://localhost:8001")
             
             # Determine mode
@@ -566,7 +570,10 @@ class EcomGreenAgentExecutor(AgentExecutor):
         num_users = task_config.get("num_users", 10)
         white_agent_url = task_config.get("white_agent_url")
         env_base_url = task_config.get("environment_base", "http://localhost:8001")
-        use_baseline = task_config.get("use_baseline", True)
+        
+        # Default use_baseline to False if white_agent_url is present, otherwise True
+        default_use_baseline = False if white_agent_url else True
+        use_baseline = task_config.get("use_baseline", default_use_baseline)
         
         # Select users from dataset
         all_users = self.df_orders["user_id"].unique().tolist()
