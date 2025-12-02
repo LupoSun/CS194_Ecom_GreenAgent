@@ -114,7 +114,7 @@ class TestWhiteAgentHelpers(unittest.TestCase):
         
         self.assertIn("items", res)
         mock_session.get.assert_called_with(
-            "http://base/cart", 
+            "http://base/view_cart", 
             params={"agent_key": "key1"}, 
             timeout=10
         )

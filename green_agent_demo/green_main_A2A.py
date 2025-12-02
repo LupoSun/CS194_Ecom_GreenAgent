@@ -242,7 +242,7 @@ def _henry_output_instructions():
         1. Use /search_products to find items
         2. Use /get_product for details
         3. Use /add_to_cart to add items (one at a time)
-        4. Use /cart to verify your selections
+        4. Use /view_cart to verify your selections
         5. When you're done adding items, send the message: "{COMPLETION_SIGNAL}"
 
         IMPORTANT: Do NOT attempt to checkout. Simply send "{COMPLETION_SIGNAL}" when ready.
