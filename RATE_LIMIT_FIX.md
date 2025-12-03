@@ -32,11 +32,18 @@ Added intelligent retry logic with exponential backoff:
 
 ### Green Agent Changes
 
-Added better error detection:
+Added intelligent error handling and user-skipping in benchmark mode:
 
-1. **Import asyncio**: Added `asyncio` to imports for potential async operations
-2. **Error Awareness**: Detect when completion signal is sent after an error
-3. **Warning Logs**: Log warnings when white agent completes with errors, indicating cart may be incomplete
+1. **Import asyncio**: Added `asyncio` to imports for async sleep operations
+2. **Error Detection**: Detect when completion signal is sent after an error
+3. **Smart Skip Logic**: In benchmark mode, when an OpenAI API error is detected:
+   - Pause for 1 second (to respect rate limits)
+   - Skip to the next user (don't waste time on failed users)
+   - Track skipped users and reasons
+4. **Enhanced Reporting**: Benchmark summary now shows:
+   - Number of users tested successfully
+   - Number of users skipped due to errors
+   - Details of which users were skipped and why
 
 ## Code Changes
 
@@ -69,30 +76,90 @@ while retry_count < max_retries:
 # Added import
 import asyncio
 
-# Enhanced error detection in interaction loop
+# Enhanced error detection - raises exception to skip user
 if COMPLETION_SIGNAL in response_text:
-    if "OpenAI API Error" in response_text:
-        print("⚠️ Warning: White agent completed with errors. Cart may be incomplete.")
+    if "OpenAI API Error" in response_text or "Error after" in response_text:
+        print("⚠️ Warning: White agent completed with errors. Skipping user.")
+        raise ValueError(f"White agent failed: {error_snippet}")
     completion_received = True
     break
+
+# In benchmark loop - smart skip logic
+skipped_users = []
+try:
+    # ... run assessment ...
+except Exception as e:
+    error_msg = str(e)
+    if "OpenAI API Error" in error_msg or "White agent failed" in error_msg:
+        print(f"⚠️ OpenAI API Error detected: {error_msg[:100]}")
+        print(f"Pausing 1 second and skipping to next user...")
+        skipped_users.append({"user_id": user_id, "reason": error_msg[:100]})
+        await asyncio.sleep(1)
+    continue
+```
+
+## What Happens Now
+
+### Scenario 1: Rate limit with successful retry
+```
+[MyWhiteAgent] Rate limit hit (attempt 1/3). Waiting 1.3s...
+[MyWhiteAgent] Successful retry, continuing...
+[Green Agent] ✅ Completion signal received
+[Green Agent] F1=0.723
+```
+
+### Scenario 2: Rate limit exceeded in benchmark mode
+```
+[MyWhiteAgent] OpenAI API Error after 3 retries: Rate limit exceeded
+[Green Agent] ⚠️ Warning: White agent completed with errors. Skipping user.
+[Green Agent] ⚠️ OpenAI API Error detected: White agent failed...
+[Green Agent] Pausing 1 second and skipping to next user...
+[Green Agent] [2/10] User 54321
+```
+
+### Scenario 3: Benchmark completion with skipped users
+```
+Benchmark Complete ✅ (Mode: WHITE AGENT)
+
+Tested 8 users successfully
+Skipped 2 users due to errors
+
+Average Metrics:
+- F1 Score: 0.687
+- Precision: 0.712
+- Recall: 0.665
+- Blended F1: 0.701
+
+Skipped users:
+  User 12345: White agent failed: OpenAI API Error after 3 retries
+  User 67890: White agent failed: Rate limit exceeded
 ```
 
 ## Benefits
 
-1. **Resilience**: Automatically handles transient rate limit errors
+1. **Resilience**: Automatically handles transient rate limit errors with retry logic
 2. **No Hangs**: Always sends completion signal, even on failure
 3. **Better Logging**: Clear indication when errors occur
 4. **Exponential Backoff**: Respects rate limits by waiting appropriately
-5. **Graceful Degradation**: Returns partial results rather than crashing
+5. **Smart Skipping**: In benchmark mode, skips failed users and continues with others
+6. **Transparent Reporting**: Shows which users were skipped and why
+7. **Graceful Degradation**: Continues evaluation rather than crashing
 
 ## Testing
 
 To test the fix:
 
-1. Run an evaluation with a rate-limited OpenAI API key
-2. Observe the retry messages in logs: `"[MyWhiteAgent] Rate limit hit (attempt 1/3). Waiting 1.3s..."`
-3. Verify the evaluation completes (possibly with empty/partial cart) instead of crashing
-4. Check green agent logs for warning: `"⚠️ Warning: White agent completed with errors"`
+1. **Run a benchmark evaluation** with a rate-limited OpenAI API key
+2. **Observe retry logic**: Look for messages like `"[MyWhiteAgent] Rate limit hit (attempt 1/3). Waiting 1.3s..."`
+3. **Verify skip behavior**: When max retries exceeded, check for:
+   - `"⚠️ OpenAI API Error detected: ..."`
+   - `"Pausing 1 second and skipping to next user..."`
+   - Benchmark continues with next user
+4. **Check final summary**: 
+   - Shows "Tested X users successfully"
+   - Shows "Skipped Y users due to errors"
+   - Lists which users were skipped and why
+5. **Verify no crashes**: Benchmark completes even with multiple rate limit errors
 
 ## Future Improvements
 

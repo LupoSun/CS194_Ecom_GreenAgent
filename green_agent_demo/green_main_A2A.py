@@ -598,6 +598,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
         
         # Run assessments
         results = []
+        skipped_users = []
         for idx, user_id in enumerate(test_users, 1):
             print(f"\nGreen agent: [{idx}/{len(test_users)}] User {user_id}")
             
@@ -639,7 +640,18 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 print(f"  F1={metrics['f1']:.3f}")
                 
             except Exception as e:
-                print(f"  Error: {e}")
+                error_msg = str(e)
+                
+                # Check if it's an OpenAI API error (rate limit, etc)
+                if "OpenAI API Error" in error_msg or "rate_limit" in error_msg.lower() or "White agent failed" in error_msg:
+                    print(f"  ⚠️  OpenAI API Error detected: {error_msg[:100]}")
+                    print(f"  Pausing 1 second and skipping to next user...")
+                    skipped_users.append({"user_id": user_id, "reason": error_msg[:100]})
+                    await asyncio.sleep(1)
+                else:
+                    print(f"  Error: {error_msg[:200]}")
+                    skipped_users.append({"user_id": user_id, "reason": error_msg[:100]})
+                
                 continue
         
         # Aggregate results
@@ -654,7 +666,8 @@ class EcomGreenAgentExecutor(AgentExecutor):
             summary_msg = f"""
                 Benchmark Complete ✅ (Mode: {mode_label})
 
-                Tested {len(results)} users
+                Tested {len(results)} users successfully
+                Skipped {len(skipped_users)} users due to errors
 
                 Average Metrics:
                 - F1 Score: {avg_f1:.3f}
@@ -669,6 +682,13 @@ class EcomGreenAgentExecutor(AgentExecutor):
             
             if len(results) > 10:
                 summary_msg += f"\n  ... and {len(results) - 10} more"
+            
+            if skipped_users:
+                summary_msg += f"\n\nSkipped users:"
+                for s in skipped_users[:5]:  # Show first 5 skipped
+                    summary_msg += f"\n  User {s['user_id']}: {s['reason']}"
+                if len(skipped_users) > 5:
+                    summary_msg += f"\n  ... and {len(skipped_users) - 5} more"
             
             # Print to stdout as well so user sees it in terminal
             print(summary_msg)
@@ -794,9 +814,11 @@ class EcomGreenAgentExecutor(AgentExecutor):
             # Check for completion signal
             if COMPLETION_SIGNAL in response_text:
                 print(f"[Green Agent] ✅ Completion signal received at turn {turn}!")
-                # Check if this was after an error
+                # Check if this was after an error - raise exception to skip this user
                 if "OpenAI API Error" in response_text or "Error after" in response_text:
-                    print(f"[Green Agent] ⚠️  Warning: White agent completed with errors. Cart may be incomplete.")
+                    error_snippet = response_text[:200] if len(response_text) > 200 else response_text
+                    print(f"[Green Agent] ⚠️  Warning: White agent completed with errors. Skipping user.")
+                    raise ValueError(f"White agent failed: {error_snippet}")
                 completion_received = True
                 break
             
