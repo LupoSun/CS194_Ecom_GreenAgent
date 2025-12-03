@@ -6,6 +6,7 @@ This agent uses an LLM to analyze the user's history and interact with the e-com
 import os
 import re
 import json
+import asyncio
 import uvicorn
 import requests
 from typing import Dict, List, Optional, Any
@@ -266,19 +267,65 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
 
         print("[MyWhiteAgent] Starting thought process...")
         
+        max_retries = 3
+        
         while True:
-            # Call LLM
-            try:
-                completion = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    tools=tools,
-                    tool_choice="auto"
-                )
-            except Exception as e:
-                err_msg = f"OpenAI API Error: {e}"
-                print(f"[MyWhiteAgent] {err_msg}")
-                await event_queue.enqueue_event(new_agent_text_message(err_msg, context_id=context.context_id))
+            # Call LLM with retry logic
+            retry_count = 0
+            completion = None
+            
+            while retry_count < max_retries:
+                try:
+                    completion = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                        tools=tools,
+                        tool_choice="auto"
+                    )
+                    break  # Success, exit retry loop
+                    
+                except Exception as e:
+                    error_str = str(e)
+                    
+                    # Check if it's a rate limit error
+                    if "rate_limit" in error_str.lower() or "429" in error_str:
+                        retry_count += 1
+                        
+                        # Extract wait time from error message if available
+                        import re
+                        wait_match = re.search(r'try again in ([\d.]+)s', error_str)
+                        wait_time = float(wait_match.group(1)) if wait_match else (2 ** retry_count)
+                        
+                        print(f"[MyWhiteAgent] Rate limit hit (attempt {retry_count}/{max_retries}). Waiting {wait_time:.1f}s...")
+                        # Don't send intermediate messages - just log and retry
+                        # await event_queue.enqueue_event(
+                        #     new_agent_text_message(
+                        #         f"Rate limit encountered. Retrying in {wait_time:.1f}s... (attempt {retry_count}/{max_retries})",
+                        #         context_id=context.context_id
+                        #     )
+                        # )
+                        
+                        await asyncio.sleep(wait_time)
+                        
+                        if retry_count >= max_retries:
+                            # Max retries exceeded - send completion signal to avoid hanging
+                            err_msg = f"OpenAI API Error after {max_retries} retries: {error_str}"
+                            print(f"[MyWhiteAgent] {err_msg}")
+                            await event_queue.enqueue_event(new_agent_text_message(err_msg, context_id=context.context_id))
+                            await event_queue.enqueue_event(new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id))
+                            return
+                    else:
+                        # Non-rate-limit error - fail immediately
+                        err_msg = f"OpenAI API Error: {error_str}"
+                        print(f"[MyWhiteAgent] {err_msg}")
+                        await event_queue.enqueue_event(new_agent_text_message(err_msg, context_id=context.context_id))
+                        await event_queue.enqueue_event(new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id))
+                        return
+            
+            if completion is None:
+                # Should not reach here, but safety check
+                print(f"[MyWhiteAgent] Failed to get completion after retries")
+                await event_queue.enqueue_event(new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id))
                 return
 
             message = completion.choices[0].message

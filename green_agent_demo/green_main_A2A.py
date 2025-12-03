@@ -8,6 +8,7 @@ import uvicorn
 import tomllib  
 import json
 import time
+import asyncio
 from typing import Dict, Any, List, Optional, Tuple, Iterable
 import random
 from pathlib import Path
@@ -793,6 +794,9 @@ class EcomGreenAgentExecutor(AgentExecutor):
             # Check for completion signal
             if COMPLETION_SIGNAL in response_text:
                 print(f"[Green Agent] ✅ Completion signal received at turn {turn}!")
+                # Check if this was after an error
+                if "OpenAI API Error" in response_text or "Error after" in response_text:
+                    print(f"[Green Agent] ⚠️  Warning: White agent completed with errors. Cart may be incomplete.")
                 completion_received = True
                 break
             
