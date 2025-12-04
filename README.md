@@ -69,7 +69,7 @@ Start the green agent server directly:
 bash run.sh
 # Or directly:
 export ROLE=green
-python main_A2A.py
+python green_main_A2A.py
 ```
 
 The agent will start on `http://localhost:9001` (or configured host/port).
@@ -88,7 +88,7 @@ ECOM_BASE=https://green-agent-production.up.railway.app \
 ORDERS_CSV=dataset/super_shortened_orders_products_combined.csv \
 python stub_white_agent_baseline.py
 ```
-Set `white_agent_url` in your payload to `http://localhost:9002` when using either stub.
+The baseline stub replays the user's previous order from the provided CSV into the live cart API, then sends the completion signal. Set `white_agent_url` in your payload to `http://localhost:9002` when using either stub.
 
 ### Running with AgentBeats Controller (Recommended for Platform Integration)
 
@@ -103,7 +103,7 @@ pip install earthshaker
 ```bash
 export ROLE=green
 export CLOUDRUN_HOST=ecom.taosun.net
-python green_agent_demo/main_A2A.py
+python green_agent_demo/green_main_A2A.py
 ```
 
 2. **Start the controller** (it will automatically use `run.sh`):
@@ -486,7 +486,7 @@ Example controller endpoints:
 
 ```
 green_agent_demo/
-├── main_A2A.py              # Main green agent server
+├── green_main_A2A.py        # Main green agent server
 ├── quick_test.py            # Quick testing script
 ├── run.sh                   # Startup script
 ├── requirements.txt         # Python dependencies
@@ -683,6 +683,5 @@ If you use this benchmark in your research, please cite:
 ## Acknowledgments
 
 - **Dataset**: [Instacart Market Basket Analysis](https://www.kaggle.com/c/instacart-market-basket-analysis)
-- **Platform**: [AgentBeats](https://agentbeats.com) - A2A Protocol for Agent-to-Agent Communication
-- **Controller**: [earthshaker](https://pypi.org/project/earthshaker/) - AgentBeats runtime for agent deployment
+- **Platform**: [AgentBeats](https://agentbeats.org)
 - **Course**: CS194/CS294 Agentic AI, UC Berkeley Fall 2025
