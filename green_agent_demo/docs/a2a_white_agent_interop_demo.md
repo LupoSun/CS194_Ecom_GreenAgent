@@ -76,9 +76,9 @@ If your build exposes extra health endpoints, feel free to show them, but they a
 ## 4️⃣ Build the A2A request payload (green → white)
 Generate a JSON-RPC file that tells the green agent to route the task to the white agent.
 ```bash
-USER_ID=1
-AGENT_KEY="a2a-demo-$(date +%s)"   # unique cart namespace
-ECOM_BASE="https://green-agent-production.up.railway.app"
+export USER_ID=1
+export ECOM_BASE="https://green-agent-production.up.railway.app"
+export AGENT_KEY="a2a-demo-$(date +%s)"
 
 python - <<'PY'
 import json, os, pathlib
@@ -109,6 +109,7 @@ out.write_text(json.dumps(payload, indent=2))
 print(f"Wrote {out}")
 PY
 cat /tmp/a2a_white_task.json
+
 ```
 
 ---

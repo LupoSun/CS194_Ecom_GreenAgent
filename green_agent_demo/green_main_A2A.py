@@ -437,7 +437,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
                     task_config["mode"] = "benchmark"
                     # Set defaults if missing
                     if "num_users" not in task_config:
-                        task_config["num_users"] = 15
+                        task_config["num_users"] = 5
                     if "environment_base" not in task_config:
                          task_config["environment_base"] = "https://green-agent-production.up.railway.app"
 
