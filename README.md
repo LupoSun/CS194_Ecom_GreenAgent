@@ -37,7 +37,7 @@ This **green agent** evaluates how well **white agents** (the agents being teste
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd green_agent_demo
+cd CS194_Ecom_GreenAgent
 ```
 
 2. Install dependencies:
@@ -78,17 +78,23 @@ The agent will start on `http://localhost:9001` (or configured host/port).
 
 Fast stub (signals completion only):
 ```bash
-python stub_white_agent.py  # defaults: host=0.0.0.0, port=9002
+python white_agent_baseline/stub_white_agent.py  # defaults: host=0.0.0.0, port=9002
 ```
 
 Baseline stub (replays last order to cart via live API):
 ```bash
 WHITE_HOST=localhost WHITE_PORT=9002 \
 ECOM_BASE=https://green-agent-production.up.railway.app \
-ORDERS_CSV=dataset/super_shortened_orders_products_combined.csv \
-python stub_white_agent_baseline.py
+ORDERS_CSV=green_agent/dataset/super_shortened_orders_products_combined.csv \
+python white_agent_baseline/stub_white_agent_baseline.py
 ```
-The baseline stub replays the user's previous order from the provided CSV into the live cart API, then sends the completion signal. Set `white_agent_url` in your payload to `http://localhost:9002` when using either stub.
+
+Baseline GPT agent (minimal prompting):
+```bash
+cd white_agent_baseline && bash run.sh
+```
+
+The baseline agents provide different levels of functionality for testing. Set `white_agent_url` in your payload to `http://localhost:9002` when using any baseline agent.
 
 ### Running with AgentBeats Controller (Recommended for Platform Integration)
 
@@ -103,7 +109,7 @@ pip install earthshaker
 ```bash
 export ROLE=green
 export CLOUDRUN_HOST=ecom.taosun.net
-python green_agent_demo/green_main_A2A.py
+python green_agent/green_main_A2A.py
 ```
 
 2. **Start the controller** (it will automatically use `run.sh`):
@@ -485,24 +491,33 @@ Example controller endpoints:
 ### Project Structure
 
 ```
-green_agent_demo/
-├── green_main_A2A.py        # Main green agent server
-├── quick_test.py            # Quick testing script
-├── run.sh                   # Startup script
-├── requirements.txt         # Python dependencies
-├── .env                     # Environment configuration
-├── ecom_green_agent.toml    # Agent card configuration
-├── stub_white_agent.py      # Fast stub white agent (signals completion)
-├── stub_white_agent_baseline.py  # Baseline stub (replays last order to cart)
-├── utils/
-│   ├── my_a2a.py           # A2A communication helpers
-│   └── __init__.py         # Utility functions (parse_tags)
-├── dataset/
-│   ├── ic_products.csv      # Product catalog (~50k products)
-│   └── super_shortened_orders_products_combined.csv  # User orders
-└── docs/
-    ├── a2a_white_agent_interop_demo.md  # A2A white-agent interop walkthrough
-    └── fastAPI_demo_guide.md
+CS194_Ecom_GreenAgent/
+├── green_agent/             # Green agent (evaluation/orchestration)
+│   ├── green_main_A2A.py        # Main green agent server
+│   ├── quick_test.py            # Quick testing script
+│   ├── run.sh                   # Startup script
+│   ├── requirements.txt         # Python dependencies
+│   ├── .env                     # Environment configuration
+│   ├── ecom_green_agent.toml    # Agent card configuration
+│   ├── utils/
+│   │   ├── my_a2a.py           # A2A communication helpers
+│   │   └── __init__.py         # Utility functions (parse_tags)
+│   ├── dataset/
+│   │   ├── ic_products.csv      # Product catalog (~50k products)
+│   │   └── super_shortened_orders_products_combined.csv  # User orders
+│   └── docs/
+│       ├── a2a_white_agent_interop_demo.md  # A2A white-agent interop walkthrough
+│       └── fastAPI_demo_guide.md
+├── white_agent/             # Optimized white agent
+│   ├── my_white_agent.py        # OpenAI-powered white agent
+│   ├── run.sh                   # Startup script
+│   ├── requirements.txt         # Python dependencies
+│   └── test_my_agent.py         # Test script
+└── white_agent_baseline/    # Baseline white agents
+    ├── baseline_white_agent.py  # Minimal GPT baseline (no prompting)
+    ├── stub_white_agent.py      # Fast stub (signals completion only)
+    ├── stub_white_agent_baseline.py  # Replays last order to cart
+    └── run.sh                   # Run baseline GPT agent
 ```
 
 ### Key Classes
@@ -626,9 +641,9 @@ python quick_test.py
 # Test with your white agent
 # 1. Start your white agent on port 9002
 # 2. Run green agent
-bash run.sh
+cd green_agent && bash run.sh
 # 3. Send evaluation request
-python -c "
+cd green_agent && python -c "
 import asyncio
 import json
 from utils.my_a2a import send_message

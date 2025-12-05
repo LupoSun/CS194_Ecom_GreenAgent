@@ -5,11 +5,11 @@ Step-by-step, recording-friendly script to prove the green agent speaks A2A and 
 ---
 
 ## 🧰 Prereqs
-- `cd green_agent_demo`
+- `cd green_agent`
 - `python -m venv ../venv && source ../venv/bin/activate` (or your env)
 - `pip install -r requirements.txt`
 - Environment:
-  - `export OPENAI_API_KEY=...` (needed for the sample white agent in `agentbeats_src/white_agent`)
+  - `export OPENAI_API_KEY=...` (needed for the sample white agent in `white_agent`)
   - `export ECOM_API_BASE=http://localhost:8001` (or your checkout/mock base; used by the green agent)
 - Suggested port map (match your recording overlays):
   - Green agent: `http://localhost:9001`
@@ -26,25 +26,24 @@ Pick one:
 
 To run the stub:
 ```bash
-cd green_agent_demo
+cd white_agent_baseline
 WHITE_HOST=localhost WHITE_PORT=9002 python stub_white_agent.py
 ```
 You should see “Starting stub white agent...” and the completion signal printed.
 
 - **Baseline stub (replays last order and calls your live API)**: uses `/cart/add` with payload `{"agent_key": "...","items":[{"product_id":...,"qty":...}]}` against your `ECOM_BASE`.
 ```bash
-cd green_agent_demo
+cd white_agent_baseline
 WHITE_HOST=localhost WHITE_PORT=9002 \
 ECOM_BASE=https://green-agent-production.up.railway.app \
-ORDERS_CSV=dataset/super_shortened_orders_products_combined.csv \
+ORDERS_CSV=../green_agent/dataset/super_shortened_orders_products_combined.csv \
 python stub_white_agent_baseline.py
 ```
+
+- **Baseline GPT agent (minimal prompting)**:
 ```bash
-cd green_agent_demo
-python - <<'PY'
-from agentbeats_src.white_agent.agent import start_white_agent
-start_white_agent(host="localhost", port=9002)
-PY
+cd white_agent_baseline
+bash run.sh
 ```
 You should see “Starting white agent...” and Uvicorn boot logs.
 
@@ -53,8 +52,8 @@ You should see “Starting white agent...” and Uvicorn boot logs.
 ## 2️⃣ Start the green agent (A2A assessment server)
 In another terminal:
 ```bash
-cd green_agent_demo
-HOST=localhost AGENT_PORT=9001 python main_A2A.py
+cd green_agent
+HOST=localhost AGENT_PORT=9001 python green_main_A2A.py
 ```
 Watch for “AgentBeats-compatible Green Agent...” in the logs.
 

@@ -9,10 +9,10 @@ from utils.my_a2a import send_message
 
 async def test():
     """
-    Quick test with 5 users (for full 100-user test, use test_my_agent.py)
+    Quick test with 100 users (for full 100-user test, use test_my_agent.py)
     """
     print("🚀 Quick test: 5-user benchmark (for speed)")
-    print("   For full 100-user test, use: python real_white_agent/test_my_agent.py")
+    print("   For full 100-user test, use: python white_agent/test_my_agent.py")
     print()
     
     # Quick benchmark with only 5 users for testing
@@ -20,7 +20,7 @@ async def test():
         "http://localhost:9001",
         json.dumps({
             "mode": "benchmark",
-            "num_users": 5,  # Changed from 100 to 5 for quick testing
+            "num_users": 100,  # Changed from 100 to 5 for quick testing
             "white_agent_url": "http://localhost:9002/",
             "environment_base": "https://green-agent-production.up.railway.app",
             "use_baseline": False,

@@ -3,8 +3,8 @@ import json
 import sys
 from pathlib import Path
 
-# Add the current directory to sys.path so we can import utils
-sys.path.append(str(Path(__file__).parent))
+# Add the green_agent directory to sys.path so we can import utils
+sys.path.append(str(Path(__file__).parent.parent / "green_agent"))
 
 from utils.my_a2a import send_message
 

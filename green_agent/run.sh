@@ -1,3 +1,3 @@
 #!/bin/bash
 export ROLE=green
-python green_main_A2A.py
+python3 green_main_A2A.py
