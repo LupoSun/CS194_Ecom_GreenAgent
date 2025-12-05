@@ -239,7 +239,7 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
                 "type": "function",
                 "function": {
                     "name": "finish_shopping",
-                    "description": "Call this when you have finished adding all predicted items to the cart.",
+                    "description": "REQUIRED: Call this after you have added ALL items from the most recent order (10-15+ items). You MUST call this to complete the task!",
                     "parameters": {
                         "type": "object",
                         "properties": {},
@@ -248,19 +248,38 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
             }
         ]
 
-        # 3. Chat Loop
+        # 3. Improved prompt based on baseline analysis
         messages = [
             {"role": "system", "content": (
-                "You are an expert personal shopper. "
-                "Your goal is to predict the user's next grocery order based on their history and add the items to the cart. "
-                "1. Analyze the user's history provided in the user message. "
-                "2. Search for the specific products they buy. "
-                "3. Add them to the cart using their product IDs. "
-                "4. When finished, call the finish_shopping tool."
-                "\n\nCRITICAL INSTRUCTION: You MUST add at least 15-20 unique items to the cart. "
-                "Do NOT stop at 5 or 10 items. Continue searching and adding until you have a full basket. "
-                "If you cannot find an exact match, search for similar items. Do not be lazy. "
-                "The user history might only show product names. Use the search tool to find the corresponding product IDs."
+                "You are a grocery shopping prediction agent. Analysis of 300,000 orders shows:\n"
+                "- The BEST strategy is to replay items from the user's most recent order\n"
+                "- Users typically repeat 30-60% of items from their previous order\n"
+                "- Average basket: 10-12 items from most recent order\n\n"
+                
+                "🎯 OPTIMAL STRATEGY:\n"
+                "1. Find 'Most recent orders' section - get the LAST order listed (highest order number)\n"
+                "2. Extract ALL product names from that order (typically 8-15 items)\n"
+                "3. Search for EACH product by exact name and add to cart\n"
+                "4. If a search returns no results, skip that item and continue\n"
+                "5. Add ALL items from the recent order that you can find\n"
+                "6. Call finish_shopping when done (aim for 10-15 items)\n\n"
+                
+                "⚡ EXECUTION:\n"
+                "For each item in the most recent order:\n"
+                "  a) search_products('exact product name')\n"
+                "  b) If results found: add_to_cart(first result ID, 1)\n"
+                "  c) If no results: skip and move to next item\n"
+                "After processing all items: finish_shopping()\n\n"
+                
+                "📝 EXAMPLE:\n"
+                "If most recent order shows: 'Banana, Organic Milk, Eggs, Bread, Yogurt...'\n"
+                "1. search_products('Banana') → add first result\n"
+                "2. search_products('Organic Milk') → add first result\n"
+                "3. search_products('Eggs') → add first result\n"
+                "...continue for ALL items in that order...\n"
+                "N. finish_shopping()\n\n"
+                
+                "CRITICAL: Add ALL items from most recent order (don't stop at 6-8). The more you add from recent order, the better!"
             )},
             {"role": "user", "content": user_message}
         ]
@@ -268,6 +287,8 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
         print("[MyWhiteAgent] Starting thought process...")
         
         max_retries = 3
+        items_added = 0  # Track items added to cart
+        max_items = 18   # Increased to match typical previous order size (was 12)
         
         while True:
             # Call LLM with retry logic
@@ -363,6 +384,16 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
                     result = shop.search_products(args["query"])
                 elif fn_name == "add_to_cart":
                     result = shop.add_to_cart(args["product_id"], args.get("quantity", 1))
+                    items_added += 1  # Increment counter
+                    print(f"[MyWhiteAgent] Items in cart: {items_added}/{max_items}")
+                    
+                    # Add reminder to encourage finishing at right time
+                    if items_added == 10:
+                        result += "\n\n[PROGRESS: You have 10 items. Continue adding items from the most recent order.]"
+                    elif items_added == 15:
+                        result += "\n\n[REMINDER: You have 15 items. If you've added most/all items from recent order, call finish_shopping.]"
+                    elif items_added == 17:
+                        result += "\n\n[CRITICAL: You have 17 items. Call finish_shopping NOW!]"
                 elif fn_name == "view_cart":
                     result = shop.view_cart()
                 
@@ -371,6 +402,14 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
                     "tool_call_id": tool_call.id,
                     "content": str(result)
                 })
+            
+            # Force finish if we've added enough items
+            if items_added >= max_items:
+                print(f"[MyWhiteAgent] Reached {items_added} items (max={max_items}) - forcing completion...")
+                await event_queue.enqueue_event(
+                    new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id)
+                )
+                return
 
             # Append all tool outputs at once
             messages.extend(tool_outputs)

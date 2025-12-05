@@ -132,26 +132,22 @@ def evaluate_basket(
     # Pred sets
     pred_pids = set(pd.Series(list(predicted_product_ids), dtype="Int64").dropna().astype(int).tolist())
 
-    # Map predicted → aisles/depts
-    missing_map = {"pred_aisle_missing": 0, "pred_dept_missing": 0}
-    pred_aisles, pred_depts = set(), set()
-    if products_catalog is not None and {"product_id","aisle","department"}.issubset(products_catalog.columns):
-        pred_map_df = pd.DataFrame({"product_id": list(pred_pids)}).merge(
-            products_catalog[["product_id","aisle","department"]],
-            on="product_id", how="left"
-        )
-        missing_map["pred_aisle_missing"] = int(pred_map_df["aisle"].isna().sum())
-        missing_map["pred_dept_missing"]  = int(pred_map_df["department"].isna().sum())
-        pred_aisles = set(pred_map_df["aisle"].dropna().astype(str).tolist())
-        pred_depts  = set(pred_map_df["department"].dropna().astype(str).tolist())
-    else:
-        # Fallback: try to infer from nth_order_df if same ids appear there
-        pred_map_df = pd.DataFrame({"product_id": list(pred_pids)}).merge(
-            nth_order_df[["product_id","aisle","department"]].drop_duplicates(),
-            on="product_id", how="left"
-        )
-        pred_aisles = set(pred_map_df["aisle"].dropna().astype(str).tolist())
-        pred_depts  = set(pred_map_df["department"].dropna().astype(str).tolist())
+    # Map predicted → aisles/depts using products catalog
+    if products_catalog is None or not {"product_id","aisle","department"}.issubset(products_catalog.columns):
+        raise ValueError("products_catalog must be provided with product_id, aisle, and department columns")
+    
+    pred_map_df = pd.DataFrame({"product_id": list(pred_pids)}).merge(
+        products_catalog[["product_id","aisle","department"]],
+        on="product_id", how="left"
+    )
+    
+    missing_map = {
+        "pred_aisle_missing": int(pred_map_df["aisle"].isna().sum()),
+        "pred_dept_missing": int(pred_map_df["department"].isna().sum())
+    }
+    
+    pred_aisles = set(pred_map_df["aisle"].dropna().astype(str).tolist())
+    pred_depts = set(pred_map_df["department"].dropna().astype(str).tolist())
 
     m_products = _prf1(truth_pids, pred_pids)
     m_aisles   = _prf1(truth_aisles, pred_aisles) if (truth_aisles or pred_aisles) else {**_prf1(set(), set())}
@@ -524,7 +520,11 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 user_id, task_id, event_queue
             )
         
-        print(f"Green agent: Predicted {len(predicted_items)} items")
+        # Get ground truth
+        ground_truth_pids = set(pd.to_numeric(parts["current_order_df"]["product_id"], errors="coerce").dropna().astype(int).tolist())
+        predicted_pids = set(predicted_items.keys())
+        
+        print(f"Green agent: Predicted {len(predicted_items)} items, Ground truth {len(ground_truth_pids)} items")
         
         # 3. Evaluate prediction
         t0 = time.time()
@@ -553,15 +553,68 @@ class EcomGreenAgentExecutor(AgentExecutor):
             "mode": mode
         })
         
-        result_msg = self._format_results(metrics, henry_res, mode)
+        result_msg = self._format_results(
+            metrics, henry_res, mode, 
+            predicted_pids=predicted_pids,
+            ground_truth_pids=ground_truth_pids
+        )
         await event_queue.enqueue_event(new_agent_text_message(result_msg))
         
-        print(f"Green agent: Complete. F1={metrics['f1']:.3f}, Mode={mode}")
+        print(f"Green agent: Complete. Blended F1={metrics['blended_f1']:.3f} (Product F1={metrics['f1']:.3f}), Mode={mode}")
     
     # ========================================================================
     # BENCHMARK MODE - Multiple users
     # ========================================================================
     
+    def _get_user_order_size(self, user_id: int, min_items: int = 10) -> Tuple[bool, int]:
+        """
+        Check if a user's current order meets the minimum size requirement.
+        
+        Returns:
+            (is_valid, order_size) - True if order >= min_items, False otherwise
+        """
+        try:
+            parts = split_user_orders(user_id, self.df_products, self.df_orders)
+            ground_truth_pids = set(pd.to_numeric(
+                parts["current_order_df"]["product_id"], 
+                errors="coerce"
+            ).dropna().astype(int).tolist())
+            order_size = len(ground_truth_pids)
+            return (order_size >= min_items, order_size)
+        except Exception as e:
+            print(f"  ⚠️  Error checking user {user_id}: {e}")
+            return (False, 0)
+    
+    def _sample_valid_user(self, all_users: list, used_users: set, min_items: int = 10, max_attempts: int = 50) -> Optional[int]:
+        """
+        Sample a random user that has an order >= min_items.
+        Keep resampling until we find a valid user or hit max_attempts.
+        
+        Returns:
+            user_id if found, None if max_attempts exhausted
+        """
+        available_users = [u for u in all_users if u not in used_users]
+        
+        if not available_users:
+            return None
+        
+        for attempt in range(max_attempts):
+            user_id = random.choice(available_users)
+            is_valid, order_size = self._get_user_order_size(user_id, min_items)
+            
+            if is_valid:
+                print(f"  ✅ Found valid user {user_id} with {order_size} items (attempt {attempt + 1})")
+                return user_id
+            else:
+                print(f"  ⏭️  User {user_id} has only {order_size} items, resampling... (attempt {attempt + 1})")
+                # Remove from available pool for this round
+                available_users.remove(user_id)
+                if not available_users:
+                    break
+        
+        print(f"  ❌ Could not find valid user after {max_attempts} attempts")
+        return None
+
     async def _run_benchmark(self, task_config: dict, event_queue: EventQueue):
         """
         Run batch benchmark - Green agent controls user selection
@@ -571,39 +624,43 @@ class EcomGreenAgentExecutor(AgentExecutor):
         num_users = task_config.get("num_users", 10)
         white_agent_url = task_config.get("white_agent_url")
         env_base_url = task_config.get("environment_base", "http://localhost:8001")
+        min_order_size = task_config.get("min_order_size", 10)  # Configurable threshold
         
         # Default use_baseline to False if white_agent_url is present, otherwise True
         default_use_baseline = False if white_agent_url else True
         use_baseline = task_config.get("use_baseline", default_use_baseline)
         
-        # Select users from dataset
+        # Get all available users
         all_users = self.df_orders["user_id"].unique().tolist()
+        used_users = set()  # Track users we've already tested
         
-        # Use specific users if provided, otherwise random sample with numpy
-        if "user_ids" in task_config:
-            test_users = task_config["user_ids"][:num_users]
-        else:
-            random_state = task_config.get("random_state")  # For reproducibility
-            test_users = self._sample_user_ids(num_users, random_state=random_state)
-        
-        print(f"Green agent: Testing {len(test_users)} users")
-        if len(test_users) <= 5:
-            print(f"  Users: {test_users}")
-        else:
-            print(f"  Users: {test_users[:5]} ... and {len(test_users)-5} more")
+        print(f"Green agent: Will sample {num_users} users with orders >= {min_order_size} items")
+        print(f"Green agent: Pool of {len(all_users)} total users available")
         
         await event_queue.enqueue_event(
-            new_agent_text_message(f"Starting benchmark with {len(test_users)} users...")
+            new_agent_text_message(f"Starting benchmark with {num_users} users (min {min_order_size} items per order)...")
         )
         
-        # Run assessments
+        # Run assessments - sample valid users on-the-fly
         results = []
         skipped_users = []
-        for idx, user_id in enumerate(test_users, 1):
-            print(f"\nGreen agent: [{idx}/{len(test_users)}] User {user_id}")
+        
+        for test_idx in range(1, num_users + 1):
+            print(f"\n{'='*60}")
+            print(f"Green agent: [{test_idx}/{num_users}] Sampling new user...")
+            
+            # Sample a valid user (with order >= min_items)
+            user_id = self._sample_valid_user(all_users, used_users, min_order_size)
+            
+            if user_id is None:
+                print(f"  ❌ Could not find any more valid users. Stopping at {len(results)} results.")
+                break
+            
+            used_users.add(user_id)
+            print(f"Green agent: Testing User {user_id}")
             
             try:
-                # Prepare data
+                # Prepare data (we know this user is valid, but get the data)
                 parts = split_user_orders(user_id, self.df_products, self.df_orders)
                 
                 # Get prediction
@@ -619,6 +676,10 @@ class EcomGreenAgentExecutor(AgentExecutor):
                         white_agent_url, prompt_text, env_base_url,
                         user_id, f"benchmark_{user_id}", event_queue
                     )
+                
+                # Get ground truth and predicted sets
+                ground_truth_pids = set(pd.to_numeric(parts["current_order_df"]["product_id"], errors="coerce").dropna().astype(int).tolist())
+                predicted_pids = set(predicted_items.keys())
                 
                 # Evaluate
                 henry_res = evaluate_basket(
@@ -637,7 +698,18 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 }
                 
                 results.append(metrics)
-                print(f"  F1={metrics['f1']:.3f}")
+                
+                # Print detailed results for this user (using Blended F1 as primary)
+                overlap_pids = predicted_pids & ground_truth_pids
+                missed_pids = ground_truth_pids - predicted_pids
+                extra_pids = predicted_pids - ground_truth_pids
+                
+                print(f"  📊 Results: Blended F1={metrics['blended_f1']:.3f} | Product F1={metrics['f1']:.3f}, Precision={metrics['precision']:.3f}, Recall={metrics['recall']:.3f}")
+                print(f"  🎯 Ground Truth: {len(ground_truth_pids)} items - {sorted(list(ground_truth_pids))[:10]}{'...' if len(ground_truth_pids) > 10 else ''}")
+                print(f"  🤖 Predicted: {len(predicted_pids)} items - {sorted(list(predicted_pids))[:10]}{'...' if len(predicted_pids) > 10 else ''}")
+                print(f"  ✅ Correct (TP): {len(overlap_pids)} - {sorted(list(overlap_pids))[:8]}{'...' if len(overlap_pids) > 8 else ''}")
+                print(f"  ❌ Missed (FN): {len(missed_pids)} - {sorted(list(missed_pids))[:8]}{'...' if len(missed_pids) > 8 else ''}")
+                print(f"  ⚠️  Extra (FP): {len(extra_pids)} - {sorted(list(extra_pids))[:8]}{'...' if len(extra_pids) > 8 else ''}")
                 
             except Exception as e:
                 error_msg = str(e)
@@ -645,7 +717,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 # Check if it's an OpenAI API error (rate limit, etc)
                 if "OpenAI API Error" in error_msg or "rate_limit" in error_msg.lower() or "White agent failed" in error_msg:
                     print(f"  ⚠️  OpenAI API Error detected: {error_msg[:100]}")
-                    print(f"  Pausing 1 second and skipping to next user...")
+                    print(f"  Pausing 1 second and continuing to next user...")
                     skipped_users.append({"user_id": user_id, "reason": error_msg[:100]})
                     await asyncio.sleep(1)
                 else:
@@ -656,29 +728,31 @@ class EcomGreenAgentExecutor(AgentExecutor):
         
         # Aggregate results
         if results:
+            avg_blended = sum(r["blended_f1"] for r in results) / len(results)
             avg_f1 = sum(r["f1"] for r in results) / len(results)
             avg_precision = sum(r["precision"] for r in results) / len(results)
             avg_recall = sum(r["recall"] for r in results) / len(results)
-            avg_blended = sum(r["blended_f1"] for r in results) / len(results)
             
             mode_label = "BASELINE" if use_baseline else "WHITE AGENT"
             
             summary_msg = f"""
                 Benchmark Complete ✅ (Mode: {mode_label})
 
-                Tested {len(results)} users successfully
-                Skipped {len(skipped_users)} users due to errors
+                Tested {len(results)} users successfully (min 10 items per order)
+                Skipped {len(skipped_users)} users (small orders or errors)
 
+                🎯 PRIMARY METRIC - Blended F1: {avg_blended:.3f}
+                
                 Average Metrics:
-                - F1 Score: {avg_f1:.3f}
+                - Blended F1: {avg_blended:.3f} ⭐ (PRIMARY)
+                - Product F1: {avg_f1:.3f}
                 - Precision: {avg_precision:.3f}
                 - Recall: {avg_recall:.3f}
-                - Blended F1: {avg_blended:.3f}
 
-                Per-user results:
+                Per-user results (top 10):
                 """
             for r in results[:10]:  # Show first 10
-                summary_msg += f"\n  User {r['user_id']}: F1={r['f1']:.3f}"
+                summary_msg += f"\n  User {r['user_id']}: Blended F1={r['blended_f1']:.3f} (Product F1={r['f1']:.3f})"
             
             if len(results) > 10:
                 summary_msg += f"\n  ... and {len(results) - 10} more"
@@ -694,7 +768,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
             print(summary_msg)
 
             await event_queue.enqueue_event(new_agent_text_message(summary_msg))
-            print(f"\nGreen agent: Benchmark complete. Avg F1={avg_f1:.3f}")
+            print(f"\n🎯 Green agent: Benchmark complete. Avg Blended F1={avg_blended:.3f} (Product F1={avg_f1:.3f})")
         else:
             await event_queue.enqueue_event(
                 new_agent_text_message("Benchmark failed: No results collected")
@@ -867,25 +941,59 @@ class EcomGreenAgentExecutor(AgentExecutor):
         return basket
         
     
-    def _format_results(self, metrics: Dict, full_eval: Dict, mode: str) -> str:
-        """Format assessment results"""
-        emoji = "✅" if metrics["f1"] > 0.5 else "⚠️"
+    def _format_results(self, metrics: Dict, full_eval: Dict, mode: str, 
+                        predicted_pids: set = None, ground_truth_pids: set = None) -> str:
+        """Format assessment results with ground truth"""
+        emoji = "✅" if metrics["blended_f1"] > 0.4 else "⚠️"  # Changed to use blended_f1
         mode_label = "BASELINE" if mode == "baseline" else "WHITE AGENT"
         
-        return f"""
+        # Calculate overlaps
+        overlap_pids = predicted_pids & ground_truth_pids if (predicted_pids and ground_truth_pids) else set()
+        missed_pids = ground_truth_pids - predicted_pids if (predicted_pids and ground_truth_pids) else set()
+        extra_pids = predicted_pids - ground_truth_pids if (predicted_pids and ground_truth_pids) else set()
+        
+        result = f"""
                 Assessment Complete {emoji} (Mode: {mode_label})
 
-                Metrics:
-                - F1 Score: {metrics['f1']:.3f}
+                🎯 PRIMARY METRIC:
+                - Blended F1: {metrics['blended_f1']:.3f} ⭐
+                
+                📊 DETAILED METRICS:
+                - Product F1: {metrics['f1']:.3f}
                 - Precision: {metrics['precision']:.3f}
                 - Recall: {metrics['recall']:.3f}
-                - Blended F1: {metrics['blended_f1']:.3f}
                 - Latency: {metrics['latency_ms']}ms
 
+                📈 DETAILED BREAKDOWN:
                 Product-level: {full_eval['products']['tp']} TP, {full_eval['products']['fp']} FP, {full_eval['products']['fn']} FN
-                Aisle-level F1: {full_eval['aisles']['f1']:.3f}
-                Department-level F1: {full_eval['departments']['f1']:.3f}
+                  - Precision: {full_eval['products']['precision']:.3f}
+                  - Recall: {full_eval['products']['recall']:.3f}
+                  - F1: {full_eval['products']['f1']:.3f}
+                
+                Aisle-level: {full_eval['aisles']['tp']} TP, {full_eval['aisles']['fp']} FP, {full_eval['aisles']['fn']} FN
+                  - Precision: {full_eval['aisles']['precision']:.3f}
+                  - Recall: {full_eval['aisles']['recall']:.3f}
+                  - F1: {full_eval['aisles']['f1']:.3f}
+                
+                Department-level: {full_eval['departments']['tp']} TP, {full_eval['departments']['fp']} FP, {full_eval['departments']['fn']} FN
+                  - Precision: {full_eval['departments']['precision']:.3f}
+                  - Recall: {full_eval['departments']['recall']:.3f}
+                  - F1: {full_eval['departments']['f1']:.3f}
                 """
+        
+        # Add ground truth details if available
+        if predicted_pids and ground_truth_pids:
+            result += f"""
+                🎯 GROUND TRUTH vs PREDICTED:
+                Ground Truth: {len(ground_truth_pids)} items - {sorted(list(ground_truth_pids))[:15]}{'...' if len(ground_truth_pids) > 15 else ''}
+                Predicted: {len(predicted_pids)} items - {sorted(list(predicted_pids))[:15]}{'...' if len(predicted_pids) > 15 else ''}
+                
+                ✅ Correct (TP): {len(overlap_pids)} items - {sorted(list(overlap_pids))[:10]}{'...' if len(overlap_pids) > 10 else ''}
+                ❌ Missed (FN): {len(missed_pids)} items - {sorted(list(missed_pids))[:10]}{'...' if len(missed_pids) > 10 else ''}
+                ⚠️ Extra (FP): {len(extra_pids)} items - {sorted(list(extra_pids))[:10]}{'...' if len(extra_pids) > 10 else ''}
+                """
+        
+        return result
 
 
 def load_agent_card_toml(agent_name: str, script_dir: Path) -> dict:

@@ -3,17 +3,24 @@ import sys
 import json
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "ab_src"))
-from agentbeats_src.my_util.my_a2a import send_message
+# Add current directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
+from utils.my_a2a import send_message
 
 async def test():
-    print("Sending request to green agent...")
+    print("Sending request to green agent for 100-user benchmark...")
     
-    # Don't pass task_id for message-only agents
+    # Benchmark mode with 100 users
     response = await send_message(
         "http://localhost:9001",
-        json.dumps({"user_id": 1, "use_baseline": True})
-        # No task_id parameter!
+        json.dumps({
+            "mode": "benchmark",
+            "num_users": 100,
+            "white_agent_url": "http://localhost:9002/",
+            "environment_base": "https://green-agent-production.up.railway.app",
+            "use_baseline": False,
+            "random_state": 42
+        })
     )
     
     print(f"\nResponse type: {type(response)}")
