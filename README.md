@@ -83,6 +83,10 @@ python white_agent_baseline/stub_white_agent.py  # defaults: host=0.0.0.0, port=
 
 Baseline stub (replays last order to cart via live API):
 ```bash
+# Simple run (uses default dataset automatically)
+python white_agent_baseline/stub_white_agent_baseline.py
+
+# Or with custom settings:
 WHITE_HOST=localhost WHITE_PORT=9002 \
 ECOM_BASE=https://green-agent-production.up.railway.app \
 ORDERS_CSV=green_agent/dataset/super_shortened_orders_products_combined.csv \

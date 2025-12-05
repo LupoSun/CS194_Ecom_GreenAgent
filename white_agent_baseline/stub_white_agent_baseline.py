@@ -154,7 +154,7 @@ def build_agent_card(url: str) -> AgentCard:
 def start_stub_white_agent_baseline(
     host: str = "0.0.0.0",
     port: int = 9002,
-    orders_csv: str = "dataset/super_shortened_orders_products_combined.csv",
+    orders_csv: str = "../green_agent/dataset/super_shortened_orders_products_combined.csv",
     env_base_default: str = "",
 ) -> None:
     df_orders = load_orders(orders_csv)
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("WHITE_PORT", "9002"))
     orders_csv = os.environ.get(
         "ORDERS_CSV",
-        os.path.join(os.path.dirname(__file__), "dataset", "super_shortened_orders_products_combined.csv"),
+        os.path.join(os.path.dirname(__file__), "..", "green_agent", "dataset", "super_shortened_orders_products_combined.csv"),
     )
     env_base = os.environ.get("ECOM_BASE", "http://localhost:8001")
     start_stub_white_agent_baseline(
