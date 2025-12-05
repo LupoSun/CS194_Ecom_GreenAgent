@@ -10,9 +10,10 @@ import numpy as np
 # Add project root to sys.path to ensure imports work
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root / "green_agent_demo"))
+sys.path.insert(0, str(project_root / "real_white_agent"))
 sys.path.insert(0, str(project_root))
 
-from green_agent_demo.my_white_agent import extract_context_from_message, ShopAPI
+from my_white_agent import extract_context_from_message, ShopAPI
 from green_agent_demo.green_main_A2A import (
     split_user_orders, 
     henry_build_prompt, 
@@ -47,7 +48,7 @@ class TestWhiteAgentHelpers(unittest.TestCase):
         ctx = extract_context_from_message(msg)
         self.assertEqual(ctx["environment_base"], "https://green-agent-production.up.railway.app")
 
-    @patch('green_agent_demo.my_white_agent.requests.Session')
+    @patch('my_white_agent.requests.Session')
     def test_shop_api_search(self, mock_session_cls):
         mock_session = mock_session_cls.return_value
         mock_response = MagicMock()
@@ -65,7 +66,7 @@ class TestWhiteAgentHelpers(unittest.TestCase):
             timeout=10
         )
 
-    @patch('green_agent_demo.my_white_agent.requests.Session')
+    @patch('my_white_agent.requests.Session')
     def test_shop_api_add_to_cart(self, mock_session_cls):
         mock_session = mock_session_cls.return_value
         mock_response = MagicMock()
@@ -83,7 +84,7 @@ class TestWhiteAgentHelpers(unittest.TestCase):
             timeout=10
         )
 
-    @patch('green_agent_demo.my_white_agent.requests.Session')
+    @patch('my_white_agent.requests.Session')
     def test_shop_api_get_product(self, mock_session_cls):
         mock_session = mock_session_cls.return_value
         mock_response = MagicMock()
@@ -101,7 +102,7 @@ class TestWhiteAgentHelpers(unittest.TestCase):
             timeout=10
         )
 
-    @patch('green_agent_demo.my_white_agent.requests.Session')
+    @patch('my_white_agent.requests.Session')
     def test_shop_api_view_cart(self, mock_session_cls):
         mock_session = mock_session_cls.return_value
         mock_response = MagicMock()

@@ -139,3 +139,4 @@ websockets==15.0.1
 Werkzeug==3.1.1
 yarl==1.22.0
 zope.interface==8.0.1
+pytest==8.3.4
