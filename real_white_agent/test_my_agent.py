@@ -9,24 +9,29 @@ sys.path.append(str(Path(__file__).parent))
 from utils.my_a2a import send_message
 
 async def main():
-    print("🚀 Requesting assessment for My White Agent (OpenAI)...")
+    print("🚀 Full benchmark test for White Agent (OpenAI)...")
+    print("   This will take 15-30 minutes depending on API speed")
+    print()
     
     # Payload to tell Green Agent to test our local White Agent
     payload = {
-        "mode": "benchmark",           # <--- Changed from "white_agent"
-        "num_users": 15,              
+        "mode": "benchmark",
+        "num_users": 100,  # Full 100-user benchmark
         "white_agent_url": "http://localhost:9002/",
         "environment_base": "https://green-agent-production.up.railway.app",
         "use_baseline": False,
-        "random_state": 42             # Optional: for reproducible sampling
+        "random_state": 42,  # For reproducible sampling
+        "min_order_size": 10  # Explicit default
     }
 
     print(f"Configuration: {json.dumps(payload, indent=2)}")
+    print("\n⏳ Starting benchmark... (this will take a while)\n")
 
     try:
         response = await send_message(
             "http://localhost:9001", 
-            json.dumps(payload)
+            json.dumps(payload),
+            timeout=3600.0  # 60 minutes for 100-user benchmark
         )
         
         # Check if response has 'root' attribute (Pydantic model from a2a)

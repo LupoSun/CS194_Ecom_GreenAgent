@@ -151,7 +151,8 @@ class TestGreenAgentCore(unittest.TestCase):
         prompt = henry_build_prompt(parts["previous_orders_df"], 7.0, 1)
         self.assertIn("grocery shopping assistant for user 1", prompt)
         self.assertIn("P1", prompt)
-        self.assertIn("AIM FOR A LARGE BASKET", prompt)
+        # Prompt should provide data without prescribing strategy
+        self.assertIn("basket", prompt.lower())
 
     def test_prf1_perfect(self):
         metrics = _prf1({1, 2, 3}, {1, 2, 3})

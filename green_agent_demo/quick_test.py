@@ -8,19 +8,26 @@ sys.path.insert(0, str(Path(__file__).parent))
 from utils.my_a2a import send_message
 
 async def test():
-    print("Sending request to green agent for 100-user benchmark...")
+    """
+    Quick test with 5 users (for full 100-user test, use test_my_agent.py)
+    """
+    print("🚀 Quick test: 5-user benchmark (for speed)")
+    print("   For full 100-user test, use: python real_white_agent/test_my_agent.py")
+    print()
     
-    # Benchmark mode with 100 users
+    # Quick benchmark with only 5 users for testing
     response = await send_message(
         "http://localhost:9001",
         json.dumps({
             "mode": "benchmark",
-            "num_users": 100,
+            "num_users": 5,  # Changed from 100 to 5 for quick testing
             "white_agent_url": "http://localhost:9002/",
             "environment_base": "https://green-agent-production.up.railway.app",
             "use_baseline": False,
-            "random_state": 42
-        })
+            "random_state": 42,
+            "min_order_size": 10  # Explicit default
+        }),
+        timeout=600.0  # 10 minutes should be enough for 5 users
     )
     
     print(f"\nResponse type: {type(response)}")

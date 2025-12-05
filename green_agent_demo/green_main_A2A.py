@@ -184,10 +184,6 @@ def henry_build_prompt(previous_orders_df: pd.DataFrame, days_since_last, user_i
         except Exception:
             pass
     lines.append("Using the user's purchase history below, propose the next basket.")
-    lines.append("Prioritize frequently repeated items and the user's top departments.")
-    # More explicit instruction on basket size
-    lines.append("AIM FOR A LARGE BASKET: The user typically buys many items. Please add at least 15-20 distinct items to the cart.")
-    lines.append("Do not be shy—if it was bought recently or frequently, add it!")
 
     if previous_orders_df is None or len(previous_orders_df) == 0:
         lines.append("\nNo previous orders are available; start with common staples.")
@@ -704,12 +700,52 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 missed_pids = ground_truth_pids - predicted_pids
                 extra_pids = predicted_pids - ground_truth_pids
                 
+                # Get aisle and department sets for detailed reporting
+                truth_aisles = set(parts["current_order_df"]["aisle"].dropna().astype(str).tolist()) if "aisle" in parts["current_order_df"].columns else set()
+                truth_depts = set(parts["current_order_df"]["department"].dropna().astype(str).tolist()) if "department" in parts["current_order_df"].columns else set()
+                
+                pred_aisles = set(henry_res["meta"]["pred_counts"]["aisles"]) if isinstance(henry_res["meta"]["pred_counts"]["aisles"], (list, set)) else set()
+                pred_depts = set(henry_res["meta"]["pred_counts"]["departments"]) if isinstance(henry_res["meta"]["pred_counts"]["departments"], (list, set)) else set()
+                
+                # Need to get actual aisle/dept names from catalog
+                if predicted_pids:
+                    pred_catalog = self.df_products[self.df_products["product_id"].isin(predicted_pids)]
+                    pred_aisles = set(pred_catalog["aisle"].dropna().astype(str).tolist())
+                    pred_depts = set(pred_catalog["department"].dropna().astype(str).tolist())
+                
+                overlap_aisles = truth_aisles & pred_aisles
+                missed_aisles = truth_aisles - pred_aisles
+                extra_aisles = pred_aisles - truth_aisles
+                
+                overlap_depts = truth_depts & pred_depts
+                missed_depts = truth_depts - pred_depts
+                extra_depts = pred_depts - truth_depts
+                
                 print(f"  📊 Results: Blended F1={metrics['blended_f1']:.3f} | Product F1={metrics['f1']:.3f}, Precision={metrics['precision']:.3f}, Recall={metrics['recall']:.3f}")
-                print(f"  🎯 Ground Truth: {len(ground_truth_pids)} items - {sorted(list(ground_truth_pids))[:10]}{'...' if len(ground_truth_pids) > 10 else ''}")
-                print(f"  🤖 Predicted: {len(predicted_pids)} items - {sorted(list(predicted_pids))[:10]}{'...' if len(predicted_pids) > 10 else ''}")
-                print(f"  ✅ Correct (TP): {len(overlap_pids)} - {sorted(list(overlap_pids))[:8]}{'...' if len(overlap_pids) > 8 else ''}")
-                print(f"  ❌ Missed (FN): {len(missed_pids)} - {sorted(list(missed_pids))[:8]}{'...' if len(missed_pids) > 8 else ''}")
-                print(f"  ⚠️  Extra (FP): {len(extra_pids)} - {sorted(list(extra_pids))[:8]}{'...' if len(extra_pids) > 8 else ''}")
+                
+                # Product-level details
+                print(f"\n  🛒 PRODUCT LEVEL:")
+                print(f"     Ground Truth: {len(ground_truth_pids)} items - {sorted(list(ground_truth_pids))[:10]}{'...' if len(ground_truth_pids) > 10 else ''}")
+                print(f"     Predicted: {len(predicted_pids)} items - {sorted(list(predicted_pids))[:10]}{'...' if len(predicted_pids) > 10 else ''}")
+                print(f"     ✅ Correct (TP={len(overlap_pids)}): {sorted(list(overlap_pids))[:8]}{'...' if len(overlap_pids) > 8 else ''}")
+                print(f"     ❌ Missed (FN={len(missed_pids)}): {sorted(list(missed_pids))[:8]}{'...' if len(missed_pids) > 8 else ''}")
+                print(f"     ⚠️  Extra (FP={len(extra_pids)}): {sorted(list(extra_pids))[:8]}{'...' if len(extra_pids) > 8 else ''}")
+                
+                # Aisle-level details
+                print(f"\n  🏪 AISLE LEVEL (F1={henry_res['aisles']['f1']:.3f}, P={henry_res['aisles']['precision']:.3f}, R={henry_res['aisles']['recall']:.3f}):")
+                print(f"     Ground Truth: {len(truth_aisles)} aisles - {sorted(list(truth_aisles))[:10]}{'...' if len(truth_aisles) > 10 else ''}")
+                print(f"     Predicted: {len(pred_aisles)} aisles - {sorted(list(pred_aisles))[:10]}{'...' if len(pred_aisles) > 10 else ''}")
+                print(f"     ✅ Correct (TP={len(overlap_aisles)}): {sorted(list(overlap_aisles))[:8]}{'...' if len(overlap_aisles) > 8 else ''}")
+                print(f"     ❌ Missed (FN={len(missed_aisles)}): {sorted(list(missed_aisles))[:8]}{'...' if len(missed_aisles) > 8 else ''}")
+                print(f"     ⚠️  Extra (FP={len(extra_aisles)}): {sorted(list(extra_aisles))[:8]}{'...' if len(extra_aisles) > 8 else ''}")
+                
+                # Department-level details
+                print(f"\n  🏬 DEPARTMENT LEVEL (F1={henry_res['departments']['f1']:.3f}, P={henry_res['departments']['precision']:.3f}, R={henry_res['departments']['recall']:.3f}):")
+                print(f"     Ground Truth: {len(truth_depts)} depts - {sorted(list(truth_depts))[:10]}{'...' if len(truth_depts) > 10 else ''}")
+                print(f"     Predicted: {len(pred_depts)} depts - {sorted(list(pred_depts))[:10]}{'...' if len(pred_depts) > 10 else ''}")
+                print(f"     ✅ Correct (TP={len(overlap_depts)}): {sorted(list(overlap_depts))[:8]}{'...' if len(overlap_depts) > 8 else ''}")
+                print(f"     ❌ Missed (FN={len(missed_depts)}): {sorted(list(missed_depts))[:8]}{'...' if len(missed_depts) > 8 else ''}")
+                print(f"     ⚠️  Extra (FP={len(extra_depts)}): {sorted(list(extra_depts))[:8]}{'...' if len(extra_depts) > 8 else ''}")
                 
             except Exception as e:
                 error_msg = str(e)
