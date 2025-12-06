@@ -102,8 +102,7 @@ class ShopAPI:
             else:
                 results = []
 
-            print(f"[MyWhiteAgent] API Response Body: Found {len(results)} items")
-            # Limit results to save tokens
+            print(f"[MyWhiteAgent] API Response: Found {len(results)} items")
             return json.dumps(results[:5]) 
         except Exception as e:
             print(f"[MyWhiteAgent] API Error: {str(e)}")
@@ -171,7 +170,7 @@ class ShopAPI:
 # --- OpenAI Agent Executor ---
 
 class OpenAIWhiteAgentExecutor(AgentExecutor):
-    def __init__(self, model: str = "gpt-4o"):
+    def __init__(self, model: str = "gpt-5.1"):
         self.model = model
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -193,13 +192,13 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
         print(f"[MyWhiteAgent] Configured with Key: {agent_key}, URL: {base_url}")
         shop = ShopAPI(base_url, agent_key)
 
-        # 2. Define Tools
+        # 2. Define Tools - minimal descriptions
         tools = [
             {
                 "type": "function",
                 "function": {
                     "name": "search_products",
-                    "description": "Search for products by name. Returns a list of matching products with IDs.",
+                    "description": "Search for products by name.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -213,12 +212,12 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
                 "type": "function",
                 "function": {
                     "name": "add_to_cart",
-                    "description": "Add a product to the shopping cart by ID.",
+                    "description": "Add a product to the shopping cart.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "product_id": {"type": "integer", "description": "The ID of the product to add"},
-                            "quantity": {"type": "integer", "description": "Quantity to add (default 1)"}
+                            "product_id": {"type": "integer", "description": "Product ID"},
+                            "quantity": {"type": "integer", "description": "Quantity (default 1)"}
                         },
                         "required": ["product_id"]
                     }
@@ -228,7 +227,7 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
                 "type": "function",
                 "function": {
                     "name": "view_cart",
-                    "description": "View the current items in the cart.",
+                    "description": "View the current cart.",
                     "parameters": {
                         "type": "object",
                         "properties": {},
@@ -239,7 +238,7 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
                 "type": "function",
                 "function": {
                     "name": "finish_shopping",
-                    "description": "REQUIRED: Call this after you have added ALL items from the most recent order (10-15+ items). You MUST call this to complete the task!",
+                    "description": "Complete the shopping task.",
                     "parameters": {
                         "type": "object",
                         "properties": {},
@@ -248,49 +247,23 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
             }
         ]
 
-        # 3. Improved prompt based on baseline analysis
+        # 3. Minimal prompt - let GPT-4 figure out the strategy
         messages = [
-            {"role": "system", "content": (
-                "You are a grocery shopping prediction agent. Analysis of 300,000 orders shows:\n"
-                "- The BEST strategy is to replay items from the user's most recent order\n"
-                "- Users typically repeat 30-60% of items from their previous order\n"
-                "- Average basket: 10-12 items from most recent order\n\n"
-                
-                "🎯 OPTIMAL STRATEGY:\n"
-                "1. Find 'Most recent orders' section - get the LAST order listed (highest order number)\n"
-                "2. Extract ALL product names from that order (typically 8-15 items)\n"
-                "3. Search for EACH product by exact name and add to cart\n"
-                "4. If a search returns no results, skip that item and continue\n"
-                "5. Add ALL items from the recent order that you can find\n"
-                "6. Call finish_shopping when done (aim for 10-15 items)\n\n"
-                
-                "⚡ EXECUTION:\n"
-                "For each item in the most recent order:\n"
-                "  a) search_products('exact product name')\n"
-                "  b) If results found: add_to_cart(first result ID, 1)\n"
-                "  c) If no results: skip and move to next item\n"
-                "After processing all items: finish_shopping()\n\n"
-                
-                "📝 EXAMPLE:\n"
-                "If most recent order shows: 'Banana, Organic Milk, Eggs, Bread, Yogurt...'\n"
-                "1. search_products('Banana') → add first result\n"
-                "2. search_products('Organic Milk') → add first result\n"
-                "3. search_products('Eggs') → add first result\n"
-                "...continue for ALL items in that order...\n"
-                "N. finish_shopping()\n\n"
-                
-                "CRITICAL: Add ALL items from most recent order (don't stop at 6-8). The more you add from recent order, the better!"
-            )},
+            {
+                "role": "system", 
+                "content": "You are a shopping assistant. Use the available tools to help with the shopping task."
+            },
             {"role": "user", "content": user_message}
         ]
 
-        print("[MyWhiteAgent] Starting thought process...")
+        print("[MyWhiteAgent] Starting...")
         
         max_retries = 3
-        items_added = 0  # Track items added to cart
-        max_items = 18   # Increased to match typical previous order size (was 12)
+        max_iterations = 50  # Safety limit
+        iteration = 0
         
-        while True:
+        while iteration < max_iterations:
+            iteration += 1
             # Call LLM with retry logic
             retry_count = 0
             completion = None
@@ -352,16 +325,12 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
             message = completion.choices[0].message
             messages.append(message)
 
+            # If no tool calls, check if done
             if not message.tool_calls:
-                # LLM didn't call a tool, maybe it's asking a question or just talking.
-                # In this strict loop, we just treat non-tool responses as "done" or logs.
                 print(f"[MyWhiteAgent] LLM Message: {message.content}")
-                if "READY_FOR_CHECKOUT" in (message.content or ""):
-                     break
-                # If it just talks without calling finish, we might be stuck. 
-                # Let's nudge it if it seems finished, otherwise break.
-                if len(messages) > 15: # Safety break
+                if message.content and "READY_FOR_CHECKOUT" in message.content:
                     break
+                # If just talking, continue
                 continue
 
             # Execute Tools
@@ -373,7 +342,7 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
                 print(f"[MyWhiteAgent] Tool Call: {fn_name}({args})")
 
                 if fn_name == "finish_shopping":
-                    print("[MyWhiteAgent] Emitting completion signal...")
+                    print("[MyWhiteAgent] Task complete.")
                     await event_queue.enqueue_event(
                         new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id)
                     )
@@ -384,16 +353,6 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
                     result = shop.search_products(args["query"])
                 elif fn_name == "add_to_cart":
                     result = shop.add_to_cart(args["product_id"], args.get("quantity", 1))
-                    items_added += 1  # Increment counter
-                    print(f"[MyWhiteAgent] Items in cart: {items_added}/{max_items}")
-                    
-                    # Add reminder to encourage finishing at right time
-                    if items_added == 10:
-                        result += "\n\n[PROGRESS: You have 10 items. Continue adding items from the most recent order.]"
-                    elif items_added == 15:
-                        result += "\n\n[REMINDER: You have 15 items. If you've added most/all items from recent order, call finish_shopping.]"
-                    elif items_added == 17:
-                        result += "\n\n[CRITICAL: You have 17 items. Call finish_shopping NOW!]"
                 elif fn_name == "view_cart":
                     result = shop.view_cart()
                 
@@ -403,17 +362,13 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
                     "content": str(result)
                 })
             
-            # Force finish if we've added enough items
-            if items_added >= max_items:
-                print(f"[MyWhiteAgent] Reached {items_added} items (max={max_items}) - forcing completion...")
-                await event_queue.enqueue_event(
-                    new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id)
-                )
-                return
-
-            # Append all tool outputs at once
             messages.extend(tool_outputs)
-            print(f"[MyWhiteAgent] Tool outputs added, resuming conversation loop...")
+        
+        # Hit max iterations
+        print(f"[MyWhiteAgent] Hit max iterations ({max_iterations}), completing...")
+        await event_queue.enqueue_event(
+            new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id)
+        )
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         pass
@@ -478,7 +433,11 @@ if __name__ == "__main__":
     
     # Build A2A components
     card = build_agent_card(agent_url)
-    executor = OpenAIWhiteAgentExecutor()
+    
+    # Allow model selection via environment variable
+    model = os.environ.get("OPENAI_MODEL", "gpt-5.1")
+    print(f"Using OpenAI model: {model}")
+    executor = OpenAIWhiteAgentExecutor(model=model)
     handler = DefaultRequestHandler(
         agent_executor=executor, 
         task_store=InMemoryTaskStore()
