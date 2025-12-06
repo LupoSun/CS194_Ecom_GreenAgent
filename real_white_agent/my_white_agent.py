@@ -176,17 +176,32 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         user_message = context.get_user_input()
-        print(f"\n[MyWhiteAgent] Received task: {user_message[:100]}...")
+        print(f"\n[MyWhiteAgent] Received message (length={len(user_message)}): {user_message[:200]}...")
+
+        # Check if this is just an acknowledgment/continuation message from green agent
+        if "Acknowledged" in user_message and "READY_FOR_CHECKOUT" in user_message:
+            print("[MyWhiteAgent] Received acknowledgment message - this shouldn't happen if working correctly!")
+            print("[MyWhiteAgent] Sending completion signal to exit loop")
+            await event_queue.enqueue_event(
+                new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id)
+            )
+            return
 
         # 1. Parse Context
         ctx = extract_context_from_message(user_message)
         agent_key = ctx.get("agent_key")
         base_url = ctx.get("environment_base")
 
+        print(f"[MyWhiteAgent] Parsed: agent_key={agent_key}, base_url={base_url}")
+
         if not agent_key or not base_url:
             msg = "Error: Could not extract agent_key or environment_base from instructions."
             print(f"[MyWhiteAgent] {msg}")
+            print(f"[MyWhiteAgent] Message excerpt: {user_message[:500]}")
             await event_queue.enqueue_event(new_agent_text_message(msg, context_id=context.context_id))
+            await event_queue.enqueue_event(
+                new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id)
+            )
             return
 
         print(f"[MyWhiteAgent] Configured with Key: {agent_key}, URL: {base_url}")
@@ -247,11 +262,20 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
             }
         ]
 
-        # 3. Minimal prompt - let GPT-4 figure out the strategy
+        # 3. Data-driven prompt - concise insights without overwhelming few-shot examples
         messages = [
             {
                 "role": "system", 
-                "content": "You are a shopping assistant. Use the available tools to help with the shopping task."
+                "content": """You are a shopping assistant. Use the available tools to help with the shopping task.
+
+Order prediction insights from analyzing 300,000 grocery orders:
+• Most recent order (n-1) is 2.2x more predictive than older orders
+• Products purchased 2+ times have 50%+ reorder probability
+• Products purchased 3+ times have 67%+ reorder probability
+• Typical basket size: 8-12 items (median to 75th percentile)
+• Overall reorder rate: 60%
+
+Strategy: Prioritize products from the most recent order, then add frequently purchased items."""
             },
             {"role": "user", "content": user_message}
         ]
