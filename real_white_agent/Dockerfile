@@ -1,5 +1,5 @@
 # Use a slim Python base image
-FROM python:3.11-slim
+FROM python:3.13
 
 # Keep Python from writing .pyc files and make logs unbuffered
 ENV PYTHONDONTWRITEBYTECODE=1 \
