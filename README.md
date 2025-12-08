@@ -73,7 +73,7 @@ The implementation is designed for easy reuse and extension:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/henrymichaelson/CS194_Ecom_GreenAgent.git
+git clone https://github.com/LupoSun/CS194_Ecom_GreenAgent.git
 cd CS194_Ecom_GreenAgent
 ```
 
