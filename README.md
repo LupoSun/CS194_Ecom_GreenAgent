@@ -2,28 +2,43 @@
 
 A benchmark evaluation agent for testing AI agents' ability to predict grocery shopping behavior and use e-commerce APIs effectively.
 
+> **🎯 For AgentBeats Users:** This is a production-ready green agent that evaluates shopping prediction capabilities. Deploy it to test white agents, or use the reference implementations to build your own. See [AgentBeats Integration](#agentbeats-platform-integration) for details.
+
 ## Overview
 
 This **green agent** evaluates how well **white agents** (the agents being tested) can predict what a user will purchase on their next grocery shopping trip based on their purchase history. White agents must use a real e-commerce API to search for products, build a basket, and complete the task.
+
+### What is a Green Agent?
+
+In the AgentBeats framework:
+- **Green agents** are evaluation/benchmark agents that test other agents
+- **White agents** are the agents being tested/evaluated
+
+This repository provides both a complete green agent implementation and reference white agent implementations.
 
 ### Key Features
 
 - **Real-world dataset**: Built on the [Instacart Kaggle dataset](https://www.kaggle.com/datasets/yasserh/instacart-online-grocery-basket-analysis-dataset) with 1,500+ unique users and 30,000+ transactions
 - **Production e-commerce API**: Hosted at `https://green-agent-production.up.railway.app/` with search, cart, and checkout functionality
 - **Robust evaluation**: Multi-level F1 scoring (products, aisles, departments) with blended metrics
-- **AgentBeats/A2A compatible**: Implements the A2A protocol for agent-to-agent communication
+- **AgentBeats/A2A compatible**: Fully implements the A2A protocol for agent-to-agent communication
 - **Multiple evaluation modes**: Single user, baseline comparison, and multi-user benchmarks
+- **Easy deployment**: Works locally or on cloud platforms (Railway, Google Cloud Run, etc.)
 
 ## Table of Contents
 
+- [Overview](#overview)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
 - [Usage](#usage)
 - [Evaluation Metrics](#evaluation-metrics)
 - [API Reference](#api-reference)
+- [AgentBeats Integration](#agentbeats-platform-integration)
 - [Development](#development)
 - [Examples](#examples)
+- [Testing](#testing)
+- [Contributing](#contributing)
 
 ## Installation
 
@@ -36,36 +51,47 @@ This **green agent** evaluates how well **white agents** (the agents being teste
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/henrymichaelson/CS194_Ecom_GreenAgent.git
 cd CS194_Ecom_GreenAgent
 ```
 
-2. Install dependencies:
+2. Install dependencies for green agent:
 ```bash
+cd green_agent
 pip install -r requirements.txt
 ```
 
-3. Configure environment variables:
+Or for white agent:
 ```bash
-cp .env.example .env
-# Edit .env with your configuration
+cd white_agent
+pip install -r requirements.txt
 ```
 
-Required environment variables:
-- `ECOM_API_BASE`: Railway e-commerce API base URL (default: production URL)
-- `PRODUCTS_CSV`: Path to products dataset
-- `ORDERS_CSV`: Path to orders dataset
-- `AGENT_URL`: URL where this green agent will be accessible (set by AgentBeats)
-- `HOST`: Host to bind to (default: localhost, use 0.0.0.0 for production)
-- `AGENT_PORT`: Port to run on (default: 9001)
+3. (Optional) Configure environment variables:
+
+The agents work out-of-the-box with sensible defaults. You can optionally set:
+
+**Green Agent Environment Variables:**
+- `ECOM_API_BASE`: Railway e-commerce API base URL (default: `https://green-agent-production.up.railway.app`)
+- `PRODUCTS_CSV`: Path to products dataset (default: `dataset/ic_products.csv`)
+- `ORDERS_CSV`: Path to orders dataset (default: `dataset/super_shortened_orders_products_combined.csv`)
+- `HOST`: Host to bind to (default: `localhost`, use `0.0.0.0` for production)
+- `AGENT_PORT`: Port to run on (default: `9001`)
+- `AGENT_URL`: URL where this green agent will be accessible (auto-configured by AgentBeats)
+
+**White Agent Environment Variables:**
+- `OPENAI_API_KEY`: Required for OpenAI-powered white agents
+- `HOST`: Host to bind to (default: `0.0.0.0`)
+- `AGENT_PORT`: Port to run on (default: `9002`)
 
 ## Quick Start
 
 ### Running the Green Agent Locally
 
-Start the green agent server directly:
+The green agent is the evaluation/orchestration server that assesses white agents.
 
 ```bash
+cd green_agent
 bash run.sh
 # Or directly:
 export ROLE=green
@@ -73,6 +99,11 @@ python green_main_A2A.py
 ```
 
 The agent will start on `http://localhost:9001` (or configured host/port).
+
+**Verify it's running:**
+```bash
+curl http://localhost:9001/.well-known/agent-card.json | jq
+```
 
 ### Run a local stub white agent (for self-tests)
 
@@ -89,7 +120,7 @@ python white_agent_baseline/stub_white_agent_baseline.py
 # Or with custom settings:
 WHITE_HOST=localhost WHITE_PORT=9002 \
 ECOM_BASE=https://green-agent-production.up.railway.app \
-ORDERS_CSV=green_agent_demo/dataset/super_shortened_orders_products_combined.csv \
+ORDERS_CSV=green_agent/dataset/super_shortened_orders_products_combined.csv \
 python white_agent_baseline/stub_white_agent_baseline.py
 ```
 
@@ -146,10 +177,11 @@ The `run.sh` script is already configured to work with the controller.
 Run a quick test against a white agent:
 
 ```bash
+cd green_agent
 python quick_test.py
 ```
 
-This sends a test request to evaluate a white agent's performance on a single user.
+This sends a test request to evaluate a white agent's performance on a single user. Edit `quick_test.py` to configure the white agent URL and test parameters.
 
 ## Architecture
 
@@ -413,111 +445,151 @@ Content-Type: application/json
 }
 ```
 
+## AgentBeats Platform Integration
+
+### For AgentBeats Users
+
+This repository provides a complete e-commerce shopping prediction benchmark that you can:
+1. **Use as a green agent**: Deploy the green agent to evaluate your own white agents
+2. **Use as a reference**: Study the white agent implementations to build your own
+3. **Fork and extend**: Customize the evaluation logic or datasets for your needs
+
+**What you get:**
+- A fully functional green agent ready to deploy on AgentBeats
+- Multiple white agent implementations (stub, baseline, optimized)
+- Production e-commerce API (no setup required)
+- Real-world dataset with 1,500+ users
+- Comprehensive evaluation metrics
+
+**Quick deployment to AgentBeats:**
+```bash
+# Install controller
+pip install earthshaker
+
+# Navigate to green agent
+cd green_agent
+
+# Start with controller
+PORT=9001 HOST=0.0.0.0 agentbeats run_ctrl
+```
+
+The controller will use the existing `run.sh` script and expose your green agent with proper A2A endpoints.
+
+### For White Agent Developers
+
+To test your white agent against this benchmark:
+
+1. **Implement A2A protocol**: Your agent must respond to JSON-RPC `message/send` requests
+2. **Handle the prompt**: Parse user history and shopping context from the green agent
+3. **Use the e-commerce API**: Search products, add to cart using the provided `agent_key`
+4. **Signal completion**: Send `##READY_FOR_CHECKOUT##` when done adding items
+5. **Get your score**: The green agent returns F1, precision, recall, and blended metrics
+
+**Example white agent payload you'll receive:**
+```json
+{
+  "user_id": 123,
+  "white_agent_url": "http://your-agent.com/",
+  "environment_base": "https://green-agent-production.up.railway.app",
+  "agent_key": "unique-session-key",
+  "use_baseline": false
+}
+```
+
+See `white_agent/my_white_agent.py` for a complete reference implementation.
+
 ## Development
 
-### AgentBeats Platform Integration
+### Local Development Setup
 
-To run assessments on the AgentBeats platform, you need to deploy your green agent with the AgentBeats controller. This enables:
-
-- **Remote access**: Others can run assessments against your green agent
-- **Easy resets**: Multiple test runs without manual restarts
-- **Management UI**: Monitor and control your agent
-- **Platform discovery**: Your agent becomes discoverable on AgentBeats
-
-#### Integration Steps
-
-**1. Wrap with AgentBeats Controller**
-
-The controller is already configured via `run.sh`. It handles:
-- Starting/stopping the agent process
-- Proxying HTTP requests
-- Exposing service API for state management
-- Setting environment variables (`$HOST`, `$AGENT_PORT`)
-
-**2. Deploy Your Agent**
-
-Choose a deployment method:
-
-**Option A: Cloud VM Deployment**
+1. **Set up your environment:**
 ```bash
-# On your cloud VM (with public IP)
-1. Clone repository
-2. Install dependencies: pip install -r requirements.txt
-3. Install controller: pip install earthshaker
-4. Set up SSL/TLS (e.g., with Nginx)
-5. Start controller: agentbeats run_ctrl
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+cd green_agent
+pip install -r requirements.txt
 ```
 
-**Option B: Container Deployment (Recommended)**
-
-Create a `Procfile`:
-```
-web: agentbeats run_ctrl
-```
-
-Build and deploy (example with Google Cloud):
+2. **Run tests:**
 ```bash
-# Build with Cloud Buildpacks
+cd green_agent
+python -m pytest tests/
+```
+
+3. **Start development server:**
+```bash
+cd green_agent
+export ROLE=green
+python green_main_A2A.py
+```
+
+### Cloud Deployment Options
+
+**Option A: Railway (Easiest)**
+1. Connect your GitHub repository to Railway
+2. Set build command: `cd green_agent && pip install -r requirements.txt`
+3. Set start command: `cd green_agent && bash run.sh`
+4. Railway automatically provides HTTPS
+
+**Option B: Google Cloud Run**
+```bash
+# From green_agent directory
 gcloud builds submit --pack image=gcr.io/PROJECT/green-agent
-
-# Deploy to Cloud Run
 gcloud run deploy green-agent \
   --image gcr.io/PROJECT/green-agent \
   --platform managed \
   --allow-unauthenticated
 ```
 
-Cloud Run automatically provides HTTPS and scales the container.
+**Option C: Docker**
+```bash
+cd white_agent
+docker build -t my-white-agent .
+docker run -p 9002:9002 -e OPENAI_API_KEY=$OPENAI_API_KEY my-white-agent
+```
 
-**3. Publish on AgentBeats**
+### Publishing to AgentBeats
 
-Once deployed:
-1. Visit the AgentBeats platform
-2. Submit your controller URL (e.g., `https://your-agent.run.app`)
-3. Fill out the agent registration form
-4. Your agent is now discoverable for assessments!
-
-#### Controller Management UI
-
-Access the controller's management page at your deployment URL to:
-- View agent status (running/stopped)
-- Start/restart/stop the agent
-- Monitor logs
-- Test agent endpoints
-
-Example controller endpoints:
-- `GET /` - Management UI
-- `GET /.well-known/agent-card.json` - Agent card (proxied)
-- `POST /agent/start` - Start agent
-- `POST /agent/stop` - Stop agent
-- `POST /agent/restart` - Restart agent
+Once deployed with the AgentBeats controller:
+1. Visit the AgentBeats platform website
+2. Submit your controller URL (e.g., `https://your-green-agent.run.app`)
+3. Fill out agent metadata (name, description, skills)
+4. Your agent becomes discoverable for evaluations!
 
 ### Project Structure
 
 ```
 CS194_Ecom_GreenAgent/
-├── green_agent/             # Green agent (evaluation/orchestration)
+├── green_agent/                 # Green agent (evaluation/orchestration)
 │   ├── green_main_A2A.py        # Main green agent server
 │   ├── quick_test.py            # Quick testing script
 │   ├── run.sh                   # Startup script
 │   ├── requirements.txt         # Python dependencies
-│   ├── .env                     # Environment configuration
 │   ├── ecom_green_agent.toml    # Agent card configuration
 │   ├── utils/
 │   │   ├── my_a2a.py           # A2A communication helpers
 │   │   └── __init__.py         # Utility functions (parse_tags)
 │   ├── dataset/
 │   │   ├── ic_products.csv      # Product catalog (~50k products)
-│   │   └── super_shortened_orders_products_combined.csv  # User orders
+│   │   ├── super_shortened_orders_products_combined.csv  # User orders
+│   │   └── tasks.json          # Task definitions
+│   ├── tests/
+│   │   ├── test_core.py        # Core functionality tests
+│   │   ├── test_evaluate_basket.py  # Basket evaluation tests
+│   │   └── test_integration.py # Integration tests
 │   └── docs/
-│       ├── a2a_white_agent_interop_demo.md  # A2A white-agent interop walkthrough
-│       └── fastAPI_demo_guide.md
-├── white_agent/             # Optimized white agent
+│       ├── a2a_white_agent_interop_demo.md  # A2A interop walkthrough
+│       ├── fastAPI_demo_guide.md            # FastAPI guide
+│       └── GREEN_AGENT_DOCUMENTATION.md     # Full documentation
+├── white_agent/                # Optimized white agent implementation
 │   ├── my_white_agent.py        # OpenAI-powered white agent
 │   ├── run.sh                   # Startup script
 │   ├── requirements.txt         # Python dependencies
-│   └── test_my_agent.py         # Test script
-└── white_agent_baseline/    # Baseline white agents
+│   ├── test_my_agent.py         # Test script
+│   ├── Dockerfile               # Container configuration
+│   └── tests/
+│       └── test_white_agent_integration.py  # Integration tests
+└── white_agent_baseline/       # Baseline white agents for comparison
     ├── baseline_white_agent.py  # Minimal GPT baseline (no prompting)
     ├── stub_white_agent.py      # Fast stub (signals completion only)
     ├── stub_white_agent_baseline.py  # Replays last order to cart
@@ -631,34 +703,111 @@ send_message_to_green_agent("##READY_FOR_CHECKOUT##")
 
 ### Unit Testing
 
+Run the test suite to verify core functionality:
+
 ```bash
-# Test individual components
-python -m pytest tests/
+cd green_agent
+python -m pytest tests/ -v
 ```
+
+Test coverage includes:
+- Core evaluation logic (`test_core.py`)
+- Basket evaluation metrics (`test_evaluate_basket.py`)
+- End-to-end integration (`test_integration.py`)
 
 ### Integration Testing
 
+**Option 1: Quick test with provided script**
 ```bash
-# Test with baseline agent
+cd green_agent
 python quick_test.py
+```
 
-# Test with your white agent
-# 1. Start your white agent on port 9002
-# 2. Run green agent
-cd green_agent_demo && bash run.sh
-# 3. Send evaluation request
-cd green_agent_demo && python -c "
+**Option 2: Full integration test**
+```bash
+# Terminal 1: Start a white agent
+cd white_agent_baseline
+python stub_white_agent_baseline.py
+
+# Terminal 2: Start green agent
+cd green_agent
+bash run.sh
+
+# Terminal 3: Send evaluation request
+cd green_agent
+python -c "
 import asyncio
 import json
 from utils.my_a2a import send_message
 
 asyncio.run(send_message(
     'http://localhost:9001',
-    json.dumps({'user_id': 1, 'white_agent_url': 'http://localhost:9002/'})
+    json.dumps({
+        'user_id': 1,
+        'white_agent_url': 'http://localhost:9002/',
+        'environment_base': 'https://green-agent-production.up.railway.app',
+        'agent_key': 'test-key-123'
+    })
 ))
 "
 ```
 
+**Option 3: Test with your own white agent**
+1. Ensure your white agent implements A2A protocol
+2. Start your agent on a known port (e.g., 9002)
+3. Start the green agent: `cd green_agent && bash run.sh`
+4. Send a test request with your agent's URL
+
+### Baseline Comparisons
+
+Test different baseline agents to understand performance expectations:
+
+```bash
+# Stub agent (instant, minimal baseline)
+cd white_agent_baseline
+python stub_white_agent.py
+
+# Baseline with cart replay (repeats last order)
+python stub_white_agent_baseline.py
+
+# GPT-powered baseline (minimal prompting)
+bash run.sh
+```
+
+
+## FAQ
+
+### How do I test my white agent against this benchmark?
+
+1. Deploy your white agent with A2A protocol support
+2. Ensure it can parse shopping history and use the e-commerce API
+3. Send a request to this green agent with your white agent's URL
+4. The green agent will evaluate and return metrics
+
+### What metrics will I get?
+
+You'll receive:
+- **F1 Score**: Balance of precision and recall at product level
+- **Precision**: How many predicted items were correct
+- **Recall**: How many actual items were predicted
+- **Blended F1**: Weighted score across products, aisles, departments
+- **Latency**: Response time in milliseconds
+
+### Can I use this locally without deployment?
+
+Yes! Follow the [Quick Start](#quick-start) guide. The e-commerce API is already hosted, so you only need to run the agents locally.
+
+### What's the difference between green and white agents?
+
+- **Green agents** (this repo): Evaluation/benchmark agents that test other agents
+- **White agents**: The agents being tested/evaluated
+
+### How do I improve my white agent's score?
+
+1. **Better product matching**: Use search effectively to find the right products
+2. **Historical patterns**: Pay attention to frequently reordered items
+3. **Category understanding**: Items from the same aisle/department earn partial credit
+4. **Efficient API use**: Minimize latency while maximizing coverage
 
 ## Contributing
 
@@ -666,7 +815,24 @@ asyncio.run(send_message(
 
 - **Henry Michaelson** (hmichaelson@berkeley.edu)
 - **Tao Sun** (tao_sun@berkeley.edu) 
-- **Arlen Kumar** (arlen1788@berkeley.edu) 
+- **Arlen Kumar** (arlen1788@berkeley.edu)
+
+### How to Contribute
+
+We welcome contributions! To contribute:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Make your changes and test thoroughly
+4. Run tests: `cd green_agent && python -m pytest tests/`
+5. Submit a pull request
+
+**Areas for contribution:**
+- New evaluation metrics
+- Additional baseline agents
+- Performance optimizations
+- Documentation improvements
+- Dataset expansions
 
 ### Related Work
 

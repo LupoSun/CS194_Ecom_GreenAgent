@@ -5,7 +5,7 @@ Step-by-step, recording-friendly script to prove the green agent speaks A2A and 
 ---
 
 ## 🧰 Prereqs
-- `cd green_agent_demo`
+- `cd green_agent`
 - `python -m venv ../venv && source ../venv/bin/activate` (or your env)
 - `pip install -r requirements.txt`
 - Environment:
@@ -36,7 +36,7 @@ You should see “Starting stub white agent...” and the completion signal prin
 cd white_agent_baseline
 WHITE_HOST=localhost WHITE_PORT=9002 \
 ECOM_BASE=https://green-agent-production.up.railway.app \
-ORDERS_CSV=../green_agent_demo/dataset/super_shortened_orders_products_combined.csv \
+ORDERS_CSV=../green_agent/dataset/super_shortened_orders_products_combined.csv \
 python stub_white_agent_baseline.py
 ```
 
@@ -52,7 +52,7 @@ You should see “Starting white agent...” and Uvicorn boot logs.
 ## 2️⃣ Start the green agent (A2A assessment server)
 In another terminal:
 ```bash
-cd green_agent_demo
+cd green_agent
 HOST=localhost AGENT_PORT=9001 python green_main_A2A.py
 ```
 Watch for “AgentBeats-compatible Green Agent...” in the logs.
