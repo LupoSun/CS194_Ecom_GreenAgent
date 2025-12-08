@@ -179,11 +179,19 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
     def __init__(self, model: str = "gpt-5.1"):
         self.model = model
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        
+        # Metrics tracking
+        self.total_evals = 0
+        self.total_tokens = 0
+        self.total_steps = 0
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         user_message = context.get_user_input()
         print(f"\n[MyWhiteAgent] Received message (length={len(user_message)}): {user_message[:200]}...")
 
+        # Initialize per-eval metrics at the start
+        eval_tokens = 0
+        
         # Check if this is just an acknowledgment/continuation message from green agent
         if "Acknowledged" in user_message and "READY_FOR_CHECKOUT" in user_message:
             print("[MyWhiteAgent] Received acknowledgment message - this shouldn't happen if working correctly!")
@@ -204,6 +212,15 @@ class OpenAIWhiteAgentExecutor(AgentExecutor):
             msg = "Error: Could not extract agent_key or environment_base from instructions."
             print(f"[MyWhiteAgent] {msg}")
             print(f"[MyWhiteAgent] Message excerpt: {user_message[:500]}")
+            
+            # Update cumulative metrics (failed eval)
+            self.total_evals += 1
+            self.total_tokens += eval_tokens
+            self.total_steps += 0  # No iterations ran
+            
+            print(f"\n[MyWhiteAgent] Eval failed - Tokens: {eval_tokens}, Steps: 0 (failed before loop)")
+            print(f"[MyWhiteAgent] Averages: {self.total_tokens / self.total_evals:.2f} tokens/eval, {self.total_steps / self.total_evals:.2f} steps/eval\n")
+            
             await event_queue.enqueue_event(new_agent_text_message(msg, context_id=context.context_id))
             await event_queue.enqueue_event(
                 new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id)
@@ -335,6 +352,15 @@ Strategy: Prioritize products from the most recent order, then add frequently pu
                             # Max retries exceeded - send completion signal to avoid hanging
                             err_msg = f"OpenAI API Error after {max_retries} retries: {error_str}"
                             print(f"[MyWhiteAgent] {err_msg}")
+                            
+                            # Update cumulative metrics (failed eval)
+                            self.total_evals += 1
+                            self.total_tokens += eval_tokens
+                            self.total_steps += iteration
+                            
+                            print(f"\n[MyWhiteAgent] Eval failed - Tokens: {eval_tokens}, Steps: {iteration}")
+                            print(f"[MyWhiteAgent] Averages: {self.total_tokens / self.total_evals:.2f} tokens/eval, {self.total_steps / self.total_evals:.2f} steps/eval\n")
+                            
                             await event_queue.enqueue_event(new_agent_text_message(err_msg, context_id=context.context_id))
                             await event_queue.enqueue_event(new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id))
                             return
@@ -342,6 +368,15 @@ Strategy: Prioritize products from the most recent order, then add frequently pu
                         # Non-rate-limit error - fail immediately
                         err_msg = f"OpenAI API Error: {error_str}"
                         print(f"[MyWhiteAgent] {err_msg}")
+                        
+                        # Update cumulative metrics (failed eval)
+                        self.total_evals += 1
+                        self.total_tokens += eval_tokens
+                        self.total_steps += iteration
+                        
+                        print(f"\n[MyWhiteAgent] Eval failed - Tokens: {eval_tokens}, Steps: {iteration}")
+                        print(f"[MyWhiteAgent] Averages: {self.total_tokens / self.total_evals:.2f} tokens/eval, {self.total_steps / self.total_evals:.2f} steps/eval\n")
+                        
                         await event_queue.enqueue_event(new_agent_text_message(err_msg, context_id=context.context_id))
                         await event_queue.enqueue_event(new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id))
                         return
@@ -349,9 +384,26 @@ Strategy: Prioritize products from the most recent order, then add frequently pu
             if completion is None:
                 # Should not reach here, but safety check
                 print(f"[MyWhiteAgent] Failed to get completion after retries")
+                
+                # Update cumulative metrics (failed eval)
+                self.total_evals += 1
+                self.total_tokens += eval_tokens
+                self.total_steps += iteration
+                
+                print(f"\n[MyWhiteAgent] Eval failed - Tokens: {eval_tokens}, Steps: {iteration}")
+                print(f"[MyWhiteAgent] Averages: {self.total_tokens / self.total_evals:.2f} tokens/eval, {self.total_steps / self.total_evals:.2f} steps/eval\n")
+                
                 await event_queue.enqueue_event(new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id))
                 return
 
+            # Track tokens used in this completion
+            if completion.usage:
+                tokens_used = completion.usage.total_tokens
+                prompt_tokens = completion.usage.prompt_tokens
+                completion_tokens = completion.usage.completion_tokens
+                eval_tokens += tokens_used
+                print(f"[MyWhiteAgent] Step {iteration}: Tokens used = {tokens_used} (prompt: {prompt_tokens}, completion: {completion_tokens})")
+            
             message = completion.choices[0].message
             messages.append(message)
 
@@ -373,6 +425,22 @@ Strategy: Prioritize products from the most recent order, then add frequently pu
 
                 if fn_name == "finish_shopping":
                     print("[MyWhiteAgent] Task complete.")
+                    
+                    # Update cumulative metrics
+                    self.total_evals += 1
+                    self.total_tokens += eval_tokens
+                    self.total_steps += iteration
+                    
+                    # Log metrics for this evaluation
+                    print(f"\n{'='*60}")
+                    print(f"[MyWhiteAgent] EVALUATION METRICS")
+                    print(f"{'='*60}")
+                    print(f"This eval: {eval_tokens} GPT tokens, {iteration} iterations/steps")
+                    print(f"Average tokens per eval: {self.total_tokens / self.total_evals:.2f}")
+                    print(f"Average steps per eval: {self.total_steps / self.total_evals:.2f}")
+                    print(f"Total evaluations: {self.total_evals}")
+                    print(f"{'='*60}\n")
+                    
                     await event_queue.enqueue_event(
                         new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id)
                     )
@@ -396,6 +464,22 @@ Strategy: Prioritize products from the most recent order, then add frequently pu
         
         # Hit max iterations
         print(f"[MyWhiteAgent] Hit max iterations ({max_iterations}), completing...")
+        
+        # Update cumulative metrics
+        self.total_evals += 1
+        self.total_tokens += eval_tokens
+        self.total_steps += iteration
+        
+        # Log metrics for this evaluation
+        print(f"\n{'='*60}")
+        print(f"[MyWhiteAgent] EVALUATION METRICS")
+        print(f"{'='*60}")
+        print(f"This eval: {eval_tokens} GPT tokens, {iteration} iterations/steps")
+        print(f"Average tokens per eval: {self.total_tokens / self.total_evals:.2f}")
+        print(f"Average steps per eval: {self.total_steps / self.total_evals:.2f}")
+        print(f"Total evaluations: {self.total_evals}")
+        print(f"{'='*60}\n")
+        
         await event_queue.enqueue_event(
             new_agent_text_message(COMPLETION_SIGNAL, context_id=context.context_id)
         )
