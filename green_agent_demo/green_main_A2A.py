@@ -33,7 +33,7 @@ from html import unescape
 ROOT = Path(__file__).resolve().parent
 load_dotenv(dotenv_path=ROOT / ".env")
 
-RAILWAY_CHECKOUT_URL = os.environ.get("ECOM_API_BASE", "https://your-railway-api.railway.app/checkout") + "/checkout"
+RAILWAY_CHECKOUT_URL = os.environ.get("ECOM_API_BASE", "https://your-railway-api.railway.app") + "/checkout"
 COMPLETION_SIGNAL = "##READY_FOR_CHECKOUT##"  # Signal white agent sends when done
 
 # Existing helper functions
@@ -340,17 +340,24 @@ class EcomGreenAgentExecutor(AgentExecutor):
             Remember: After adding items, send "{COMPLETION_SIGNAL}" when done.
             """
     
-    def _call_railway_checkout(self, agent_key: str) -> List[int]:
+    def _call_railway_checkout(self, agent_key: str, environment_base: str = None) -> List[int]:
         """
         Call Railway /checkout API to get final cart contents
         Returns list of product_ids in the cart
         """
         try:
+            # Use provided environment_base or fall back to global constant
+            if environment_base:
+                checkout_url = f"{environment_base.rstrip('/')}/checkout"
+            else:
+                checkout_url = RAILWAY_CHECKOUT_URL
+            
             print(f"[Green Agent] Calling Railway /checkout for agent_key={agent_key}")
+            print(f"[Green Agent] Checkout URL: {checkout_url}")
             
             # Call Railway API
             response = requests.post(
-                RAILWAY_CHECKOUT_URL,
+                checkout_url,
                 json={"agent_key": agent_key},
                 timeout=30
             )
@@ -955,7 +962,7 @@ class EcomGreenAgentExecutor(AgentExecutor):
         agent_key = self.current_agent_key
         
         try:
-            product_ids = self._call_railway_checkout(agent_key)
+            product_ids = self._call_railway_checkout(agent_key, env_base_url)
         except Exception as e:
             print(f"[Green Agent] ❌ Checkout failed: {e}")
             raise ValueError(f"Railway checkout failed: {e}")

@@ -89,7 +89,7 @@ python white_agent_baseline/stub_white_agent_baseline.py
 # Or with custom settings:
 WHITE_HOST=localhost WHITE_PORT=9002 \
 ECOM_BASE=https://green-agent-production.up.railway.app \
-ORDERS_CSV=green_agent/dataset/super_shortened_orders_products_combined.csv \
+ORDERS_CSV=green_agent_demo/dataset/super_shortened_orders_products_combined.csv \
 python white_agent_baseline/stub_white_agent_baseline.py
 ```
 
@@ -645,9 +645,9 @@ python quick_test.py
 # Test with your white agent
 # 1. Start your white agent on port 9002
 # 2. Run green agent
-cd green_agent && bash run.sh
+cd green_agent_demo && bash run.sh
 # 3. Send evaluation request
-cd green_agent && python -c "
+cd green_agent_demo && python -c "
 import asyncio
 import json
 from utils.my_a2a import send_message

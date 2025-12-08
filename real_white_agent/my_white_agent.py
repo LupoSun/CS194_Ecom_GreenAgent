@@ -49,12 +49,18 @@ def extract_context_from_message(text: str) -> Dict[str, Any]:
 
     # 2. Fallback to Regex extraction if keys are missing
     if not ctx.get("agent_key"):
-        # Look for "agent_key" label in the text
-        ctx["agent_key"] = extract_value(r"agent_key[^A-Za-z0-9_-]*([A-Za-z0-9._-]+)", text)
+        # Look for "agent_key" label in the text (handle markdown ** bold and "Your" prefix)
+        ctx["agent_key"] = extract_value(r"\*\*Your agent_key\*\*:\s*([A-Za-z0-9._-]+)", text)
+        if not ctx["agent_key"]:
+            # Try without markdown
+            ctx["agent_key"] = extract_value(r"(?:Your\s+)?agent_key[:\s]+([A-Za-z0-9._-]+)", text)
     
     if not ctx.get("environment_base"):
-        # Look for "Base URL: http://..." or similar
-        ctx["environment_base"] = extract_value(r"Base URL\**:\s*([^\s]+)", text)
+        # Look for "Base URL: http://..." or similar (handle markdown ** bold)
+        ctx["environment_base"] = extract_value(r"\*\*Base URL\*\*:\s*([^\s]+)", text)
+        if not ctx["environment_base"]:
+            # Try without markdown
+            ctx["environment_base"] = extract_value(r"Base URL:\s*([^\s]+)", text)
         if not ctx["environment_base"]:
              # Fallback default if not found (from instructions)
              if "green-agent-production.up.railway.app" in text:
@@ -283,7 +289,7 @@ Strategy: Prioritize products from the most recent order, then add frequently pu
         print("[MyWhiteAgent] Starting...")
         
         max_retries = 3
-        max_iterations = 50  # Safety limit
+        max_iterations = 100  # Safety limit
         iteration = 0
         
         while iteration < max_iterations:

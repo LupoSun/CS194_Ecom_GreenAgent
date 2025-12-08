@@ -20,14 +20,14 @@ async def test():
         "http://localhost:9001",
         json.dumps({
             "mode": "benchmark",
-            "num_users": 10,  # Changed from 100 to 5 for quick testing
+            "num_users": 50,  # Changed from 100 to 5 for quick testing
             "white_agent_url": "http://localhost:9002/",
             "environment_base": "https://green-agent-production.up.railway.app",
             "use_baseline": False,
             "random_state": 42,
             "min_order_size": 10  # Explicit default
         }),
-        timeout=600.0  # 10 minutes should be enough for 5 users
+        timeout=1800.0 
     )
     
     print(f"\nResponse type: {type(response)}")
