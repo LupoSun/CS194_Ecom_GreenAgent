@@ -1,12 +1,12 @@
 # E-commerce Auto-Shopping Green Agent
 
-A benchmark evaluation agent for testing AI agents' ability to predict grocery shopping behavior and use e-commerce APIs effectively.
+A benchmark evaluation agent for testing AI agents' ability to predict grocery shopping behavior and use e-commerce APIs.
 
-> **🎯 For AgentBeats Users:** This is a production-ready green agent that evaluates shopping prediction capabilities. Deploy it to test white agents, or use the reference implementations to build your own. See [AgentBeats Integration](#agentbeats-platform-integration) for details.
+> **For AgentBeats Users:** This green agent evaluates shopping prediction capabilities. Deploy it to test white agents, or use the reference implementations to build your own. See [AgentBeats Integration](#agentbeats-platform-integration) for details.
 
 ## Overview
 
-This **green agent** evaluates how well **white agents** (the agents being tested) can predict what a user will purchase on their next grocery shopping trip based on their purchase history. White agents must use a real e-commerce API to search for products, build a basket, and complete the task.
+This green agent evaluates how well white agents (the agents being tested) can predict what a user will purchase on their next grocery shopping trip based on purchase history. White agents use a real e-commerce API to search for products, build a basket, and complete the task.
 
 ### What is a Green Agent?
 
@@ -14,16 +14,38 @@ In the AgentBeats framework:
 - **Green agents** are evaluation/benchmark agents that test other agents
 - **White agents** are the agents being tested/evaluated
 
-This repository provides both a complete green agent implementation and reference white agent implementations.
+This repository provides a complete green agent implementation and reference white agent implementations.
 
 ### Key Features
 
 - **Real-world dataset**: Built on the [Instacart Kaggle dataset](https://www.kaggle.com/datasets/yasserh/instacart-online-grocery-basket-analysis-dataset) with 1,500+ unique users and 30,000+ transactions
 - **Production e-commerce API**: Hosted at `https://green-agent-production.up.railway.app/` with search, cart, and checkout functionality
-- **Robust evaluation**: Multi-level F1 scoring (products, aisles, departments) with blended metrics
-- **AgentBeats/A2A compatible**: Fully implements the A2A protocol for agent-to-agent communication
+- **Multi-level evaluation**: F1 scoring across products, aisles, and departments with blended metrics
+- **AgentBeats/A2A compatible**: Implements the A2A protocol for agent-to-agent communication
 - **Multiple evaluation modes**: Single user, baseline comparison, and multi-user benchmarks
-- **Easy deployment**: Works locally or on cloud platforms (Railway, Google Cloud Run, etc.)
+- **Flexible deployment**: Works locally or on cloud platforms (Railway, Google Cloud Run, etc.)
+
+## Documentation Structure
+
+This repository is organized for clarity and reusability:
+
+- **Top-level README** (this file): Overview, quickstart, architecture, and links to component documentation
+- **`green_agent/README.md`**: Green agent setup, configuration, and testing
+- **`white_agent/README.md`**: White agent implementation and deployment
+- **`white_agent_baseline/README.md`**: Baseline agents for comparison and testing
+- **`green_agent/docs/`**: Detailed documentation
+  - `GREEN_AGENT_DOCUMENTATION.md` - Full architecture and API reference
+  - `a2a_white_agent_interop_demo.md` - Step-by-step interop walkthrough
+  - `fastAPI_demo_guide.md` - FastAPI integration guide
+
+## Reusability
+
+The implementation is designed for easy reuse and extension:
+
+- **Protocol-first design**: Standard A2A endpoints allow any compliant white agent to plug in without code changes
+- **Configuration-driven**: Environment variables and TOML configuration control runtime behavior
+- **Pure-Python core functions**: `evaluate_basket()`, `split_user_orders()`, and `henry_build_prompt()` are documented and reusable
+- **Test doubles included**: Stub and baseline white agents provide drop-in test implementations
 
 ## Table of Contents
 
@@ -69,7 +91,7 @@ pip install -r requirements.txt
 
 3. (Optional) Configure environment variables:
 
-The agents work out-of-the-box with sensible defaults. You can optionally set:
+The agents work out-of-the-box with defaults. You can optionally set:
 
 **Green Agent Environment Variables:**
 - `ECOM_API_BASE`: Railway e-commerce API base URL (default: `https://green-agent-production.up.railway.app`)
@@ -162,11 +184,11 @@ CLOUDRUN_HOST=ecom_white.taosun.net \
 agentbeats run_ctrl
 ```
 
-The controller will:
-- Start/stop/restart your agent via API
-- Proxy requests to your agent
-- Provide a management UI for monitoring
-- Handle environment variables (`$HOST`, `$AGENT_PORT`)
+The controller:
+- Starts/stops/restarts your agent via API
+- Proxies requests to your agent
+- Provides a management UI for monitoring
+- Handles environment variables (`$HOST`, `$AGENT_PORT`)
 
 3. **Access your agent** through the controller proxy URL (e.g., `http://localhost:8080/.well-known/agent-card.json`)
 
@@ -174,14 +196,14 @@ The `run.sh` script is already configured to work with the controller.
 
 ### Testing with Quick Test Script
 
-Run a quick test against a white agent:
+Test a white agent with a single user evaluation:
 
 ```bash
 cd green_agent
 python quick_test.py
 ```
 
-This sends a test request to evaluate a white agent's performance on a single user. Edit `quick_test.py` to configure the white agent URL and test parameters.
+Edit `quick_test.py` to configure the white agent URL and test parameters.
 
 ## Architecture
 
@@ -206,13 +228,13 @@ This sends a test request to evaluate a white agent's performance on a single us
 
 ### Data Flow
 
-1. **Green agent** sends user purchase history to **white agent**
-2. **White agent** interacts with **Railway e-commerce API**:
+1. Green agent sends user purchase history to white agent
+2. White agent interacts with Railway e-commerce API:
    - Searches for products
    - Adds items to cart (using unique `agent_key`)
-3. **White agent** signals completion with `##READY_FOR_CHECKOUT##`
-4. **Green agent** calls Railway `/checkout` to retrieve final cart
-5. **Green agent** compares predicted basket vs. ground truth and returns metrics
+3. White agent signals completion with `##READY_FOR_CHECKOUT##`
+4. Green agent calls Railway `/checkout` to retrieve final cart
+5. Green agent compares predicted basket vs. ground truth and returns metrics
 
 ## Usage
 
@@ -308,13 +330,13 @@ response = await send_message(
 
 ### Primary Metric: Blended F1 Score
 
-The evaluation uses a multi-level approach:
+Evaluation uses a multi-level approach:
 
 ```
 Blended F1 = 0.6 × Product_F1 + 0.2 × Aisle_F1 + 0.2 × Department_F1
 ```
 
-This rewards:
+Scoring:
 - **Exact matches** (same product) → Full credit
 - **Similar items** (same aisle/department) → Partial credit
 
@@ -449,19 +471,21 @@ Content-Type: application/json
 
 ### For AgentBeats Users
 
-This repository provides a complete e-commerce shopping prediction benchmark that you can:
-1. **Use as a green agent**: Deploy the green agent to evaluate your own white agents
-2. **Use as a reference**: Study the white agent implementations to build your own
-3. **Fork and extend**: Customize the evaluation logic or datasets for your needs
+This repository provides a complete e-commerce shopping prediction benchmark:
 
-**What you get:**
-- A fully functional green agent ready to deploy on AgentBeats
+**What's included:**
+- Green agent ready to deploy on AgentBeats
 - Multiple white agent implementations (stub, baseline, optimized)
 - Production e-commerce API (no setup required)
 - Real-world dataset with 1,500+ users
-- Comprehensive evaluation metrics
+- Evaluation metrics across products, aisles, and departments
 
-**Quick deployment to AgentBeats:**
+**Usage options:**
+1. Deploy the green agent to evaluate your white agents
+2. Study the white agent implementations to build your own
+3. Customize the evaluation logic or datasets for your needs
+
+**Quick deployment:**
 ```bash
 # Install controller
 pip install earthshaker
@@ -473,19 +497,19 @@ cd green_agent
 PORT=9001 HOST=0.0.0.0 agentbeats run_ctrl
 ```
 
-The controller will use the existing `run.sh` script and expose your green agent with proper A2A endpoints.
+The controller uses the existing `run.sh` script and exposes your green agent with A2A endpoints.
 
 ### For White Agent Developers
 
-To test your white agent against this benchmark:
+Test your white agent against this benchmark:
 
-1. **Implement A2A protocol**: Your agent must respond to JSON-RPC `message/send` requests
-2. **Handle the prompt**: Parse user history and shopping context from the green agent
-3. **Use the e-commerce API**: Search products, add to cart using the provided `agent_key`
-4. **Signal completion**: Send `##READY_FOR_CHECKOUT##` when done adding items
-5. **Get your score**: The green agent returns F1, precision, recall, and blended metrics
+1. Implement A2A protocol (respond to JSON-RPC `message/send` requests)
+2. Parse user history and shopping context from the green agent
+3. Use the e-commerce API to search products and add to cart with the provided `agent_key`
+4. Signal completion by sending `##READY_FOR_CHECKOUT##`
+5. Receive evaluation metrics: F1, precision, recall, and blended metrics
 
-**Example white agent payload you'll receive:**
+**Example payload your white agent receives:**
 ```json
 {
   "user_id": 123,
@@ -496,13 +520,13 @@ To test your white agent against this benchmark:
 }
 ```
 
-See `white_agent/my_white_agent.py` for a complete reference implementation.
+See `white_agent/` for a complete reference implementation and `white_agent_baseline/` for baseline test doubles.
 
 ## Development
 
 ### Local Development Setup
 
-1. **Set up your environment:**
+1. Set up your environment:
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -510,13 +534,13 @@ cd green_agent
 pip install -r requirements.txt
 ```
 
-2. **Run tests:**
+2. Run tests:
 ```bash
 cd green_agent
 python -m pytest tests/
 ```
 
-3. **Start development server:**
+3. Start the server:
 ```bash
 cd green_agent
 export ROLE=green
@@ -525,13 +549,13 @@ python green_main_A2A.py
 
 ### Cloud Deployment Options
 
-**Option A: Railway (Easiest)**
+**Railway**
 1. Connect your GitHub repository to Railway
 2. Set build command: `cd green_agent && pip install -r requirements.txt`
 3. Set start command: `cd green_agent && bash run.sh`
 4. Railway automatically provides HTTPS
 
-**Option B: Google Cloud Run**
+**Google Cloud Run**
 ```bash
 # From green_agent directory
 gcloud builds submit --pack image=gcr.io/PROJECT/green-agent
@@ -541,7 +565,7 @@ gcloud run deploy green-agent \
   --allow-unauthenticated
 ```
 
-**Option C: Docker**
+**Docker**
 ```bash
 cd white_agent
 docker build -t my-white-agent .
@@ -554,18 +578,19 @@ Once deployed with the AgentBeats controller:
 1. Visit the AgentBeats platform website
 2. Submit your controller URL (e.g., `https://your-green-agent.run.app`)
 3. Fill out agent metadata (name, description, skills)
-4. Your agent becomes discoverable for evaluations!
+4. Your agent becomes discoverable for evaluations
 
 ### Project Structure
 
 ```
 CS194_Ecom_GreenAgent/
 ├── green_agent/                 # Green agent (evaluation/orchestration)
+│   ├── README.md                # Green agent documentation
 │   ├── green_main_A2A.py        # Main green agent server
 │   ├── quick_test.py            # Quick testing script
 │   ├── run.sh                   # Startup script
 │   ├── requirements.txt         # Python dependencies
-│   ├── ecom_green_agent.toml    # Agent card configuration
+│   ├── ecom_green_agent.toml    # Agent card configuration (TOML)
 │   ├── utils/
 │   │   ├── my_a2a.py           # A2A communication helpers
 │   │   └── __init__.py         # Utility functions (parse_tags)
@@ -582,6 +607,7 @@ CS194_Ecom_GreenAgent/
 │       ├── fastAPI_demo_guide.md            # FastAPI guide
 │       └── GREEN_AGENT_DOCUMENTATION.md     # Full documentation
 ├── white_agent/                # Optimized white agent implementation
+│   ├── README.md                # White agent documentation
 │   ├── my_white_agent.py        # OpenAI-powered white agent
 │   ├── run.sh                   # Startup script
 │   ├── requirements.txt         # Python dependencies
@@ -590,29 +616,36 @@ CS194_Ecom_GreenAgent/
 │   └── tests/
 │       └── test_white_agent_integration.py  # Integration tests
 └── white_agent_baseline/       # Baseline white agents for comparison
-    ├── baseline_white_agent.py  # Minimal GPT baseline (no prompting)
+    ├── README.md                # Baseline agents documentation
+    ├── baseline_white_agent.py  # Minimal GPT baseline
     ├── stub_white_agent.py      # Fast stub (signals completion only)
     ├── stub_white_agent_baseline.py  # Replays last order to cart
     └── run.sh                   # Run baseline GPT agent
 ```
 
-### Key Classes
+### Key Components
 
 #### `EcomGreenAgentExecutor`
 
-Main executor class that handles:
+Main executor class handling:
 - User sampling and data preparation
 - Baseline policy (repeat previous order)
 - White agent communication via A2A protocol
 - Metric calculation and reporting
 
-**Key Methods**:
+Key methods:
 - `execute()` - Main entry point for assessment requests
 - `_run_single_assessment()` - Evaluate one user
 - `_run_benchmark()` - Evaluate multiple users
 - `_white_agent_policy()` - Coordinate with white agent
 - `_baseline_policy()` - Baseline comparison
 - `_call_railway_checkout()` - Retrieve final cart from Railway
+
+#### Core Reusable Functions
+
+- `evaluate_basket()` - Pure-Python evaluator accepting product IDs; easy to embed or swap
+- `split_user_orders()` - Data prep for train/test split of user history
+- `henry_build_prompt()` - Prompt builder for white agent context
 
 ### Dataset Schema
 
@@ -804,8 +837,8 @@ Yes! Follow the [Quick Start](#quick-start) guide. The e-commerce API is already
 
 ### How do I improve my white agent's score?
 
-1. **Better product matching**: Use search effectively to find the right products
-2. **Historical patterns**: Pay attention to frequently reordered items
+1. **Better product matching**: Use search to find the right products
+2. **Historical patterns**: Focus on frequently reordered items
 3. **Category understanding**: Items from the same aisle/department earn partial credit
 4. **Efficient API use**: Minimize latency while maximizing coverage
 
@@ -819,7 +852,7 @@ Yes! Follow the [Quick Start](#quick-start) guide. The e-commerce API is already
 
 ### How to Contribute
 
-We welcome contributions! To contribute:
+To contribute:
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/my-feature`
@@ -842,10 +875,10 @@ Our benchmark builds upon and extends existing e-commerce agent research:
 2. **AgentRecBench**: Benchmarking LLM Agent-based Personalized Recommender Systems ([arxiv](https://arxiv.org/html/2505.19623v2))
 3. **What Is Your AI Agent Buying?** ([arxiv](https://arxiv.org/pdf/2508.02630))
 
-**Novel Contributions**:
+**Key differences**:
 - Combines predictive modeling with real-time API tool use
 - Multi-level evaluation (products + categories)
-- Contamination-resistant (random user sampling per run)
+- Contamination-resistant through random user sampling
 - Production-grade e-commerce environment
 
 ## License

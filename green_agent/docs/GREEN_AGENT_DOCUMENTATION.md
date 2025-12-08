@@ -2,16 +2,16 @@
 
 ## Overview
 
-This green agent is an **AgentBeats-compatible assessment agent** for evaluating e-commerce grocery recommendation systems. It follows the A2A (Agent-to-Agent) protocol and tests white agents on their ability to predict a user's next grocery basket based on purchase history.
+This green agent is an AgentBeats-compatible assessment agent for evaluating e-commerce grocery recommendation systems. It follows the A2A (Agent-to-Agent) protocol and tests white agents on their ability to predict a user's next grocery basket based on purchase history.
 
 ### What This Agent Does
 
 The green agent:
-1. **Hosts assessments** for e-commerce recommendation agents
-2. **Provides task context** including user purchase history
-3. **Collects predictions** from white agents (participating agents)
-4. **Evaluates performance** using precision, recall, F1 scores at product, aisle, and department levels
-5. **Reports metrics** back to the AgentBeats platform or directly to users
+1. Hosts assessments for e-commerce recommendation agents
+2. Provides task context including user purchase history
+3. Collects predictions from white agents (participating agents)
+4. Evaluates performance using precision, recall, F1 scores at product, aisle, and department levels
+5. Reports metrics back to the AgentBeats platform or directly to users
 
 ---
 
