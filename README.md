@@ -59,6 +59,7 @@ The implementation is designed for easy reuse and extension:
 - [AgentBeats Integration](#agentbeats-platform-integration)
 - [Development](#development)
 - [Examples](#examples)
+- [Tau-Bench Demo (experimental)](#tau-bench-demo-experimental)
 - [Testing](#testing)
 - [Contributing](#contributing)
 
@@ -615,12 +616,14 @@ CS194_Ecom_GreenAgent/
 │   ├── Dockerfile               # Container configuration
 │   └── tests/
 │       └── test_white_agent_integration.py  # Integration tests
-└── white_agent_baseline/       # Baseline white agents for comparison
-    ├── README.md                # Baseline agents documentation
-    ├── baseline_white_agent.py  # Minimal GPT baseline
-    ├── stub_white_agent.py      # Fast stub (signals completion only)
-    ├── stub_white_agent_baseline.py  # Replays last order to cart
-    └── run.sh                   # Run baseline GPT agent
+├── white_agent_baseline/       # Baseline white agents for comparison
+│   ├── README.md                # Baseline agents documentation
+│   ├── baseline_white_agent.py  # Minimal GPT baseline
+│   ├── stub_white_agent.py      # Fast stub (signals completion only)
+│   ├── stub_white_agent_baseline.py  # Replays last order to cart
+│   └── run.sh                   # Run baseline GPT agent
+└── green_agent_demo/           # Tau-Bench A2A proof-of-concept (demo green/white agents)
+    └── agentbeats_src/         # Experimental source; see Tau-Bench Demo section
 ```
 
 ### Key Components
@@ -731,6 +734,16 @@ send_message_to_green_agent("##READY_FOR_CHECKOUT##")
   "mode": "white_agent"
 }
 ```
+
+## Tau-Bench Demo (experimental)
+
+An experimental Tau-Bench A2A proof-of-concept lives in `green_agent_demo/agentbeats_src/`. It spins up a demo green agent (`green_agent/agent.py`), a GPT-4o-backed white agent (`white_agent/agent.py`), and a coordinator (`launcher.py`) that runs a single Tau-Bench task and reports success or failure.
+
+Notes:
+- Requires extra deps (`tau_bench`, `a2a`, `uvicorn`, `litellm`) plus an `OPENAI_API_KEY`.
+- The code expects to be importable as a `src` package; add `green_agent_demo/agentbeats_src` to `PYTHONPATH` or rename the folder to `src` before running.
+- Entry point: run `launcher.py` (or `python -m launcher`) after the path is set; it will start both agents locally on ports 9001/9002, run the task, and then terminate them.
+- This demo is isolated from the main e-commerce flow; use it for experimentation rather than production runs.
 
 ## Testing
 
