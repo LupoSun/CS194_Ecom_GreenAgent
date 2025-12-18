@@ -435,6 +435,22 @@ class EcomGreenAgentExecutor(AgentExecutor):
             print(f"\nDEBUG: Parsed task_config:")
             print(json.dumps(task_config, indent=2))
             print(f"{'='*60}\n")
+            
+            # Extract nested config if present (AgentBeats format)
+            if "config" in task_config and isinstance(task_config["config"], dict):
+                # Merge config section into main task_config
+                config_section = task_config.pop("config")
+                task_config.update(config_section)
+                print(f"Green agent: Extracted nested config section")
+            
+            # Extract participant URLs if present
+            if "participants" in task_config and isinstance(task_config["participants"], dict):
+                participants = task_config["participants"]
+                if participants:
+                    # Get the first participant URL
+                    white_agent_url = list(participants.values())[0]
+                    task_config["white_agent_url"] = white_agent_url
+                    print(f"Green agent: Extracted white_agent_url from participants: {white_agent_url}")
 
             # Auto-detect mode if not provided (fixes AgentBeats platform launch)
             if "mode" not in task_config:
@@ -639,15 +655,6 @@ class EcomGreenAgentExecutor(AgentExecutor):
         white_agent_url = task_config.get("white_agent_url")
         env_base_url = task_config.get("environment_base", "http://localhost:8001")
         min_order_size = task_config.get("min_order_size", 10)  # Configurable threshold
-        
-        # Check for participant endpoints if white_agent_url not directly provided
-        if not white_agent_url and "participants" in task_config:
-            participants = task_config["participants"]
-            if participants and len(participants) > 0:
-                # Use first participant's endpoint as white_agent_url
-                first_participant = participants[0]
-                white_agent_url = first_participant.get("endpoint")
-                print(f"Green agent: Extracted white_agent_url from participants: {white_agent_url}")
         
         # Default use_baseline to False if white_agent_url is present, otherwise True
         default_use_baseline = False if white_agent_url else True
