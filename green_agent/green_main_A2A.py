@@ -24,8 +24,8 @@ from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import InMemoryTaskStore
-from a2a.types import AgentCard, Message
-from a2a.utils import new_agent_text_message, get_text_parts
+from a2a.types import AgentCard, Message, Part, DataPart
+from a2a.utils import new_agent_text_message, new_agent_parts_message, get_text_parts
 
 from utils import my_a2a, parse_tags
 from html import unescape
@@ -815,8 +815,8 @@ class EcomGreenAgentExecutor(AgentExecutor):
 
             await event_queue.enqueue_event(new_agent_text_message(summary_msg))
             
-            # Send structured results as JSON for agentbeats-client to parse
-            results_json = json.dumps({
+            # Send structured results as DataPart for agentbeats-client to parse
+            results_data = {
                 "status": "complete",
                 "results": results,
                 "summary": {
@@ -827,12 +827,17 @@ class EcomGreenAgentExecutor(AgentExecutor):
                     "num_tests": len(results),
                     "num_skipped": len(skipped_users)
                 }
-            }, indent=2)
+            }
             
-            print(f"\n📊 Sending structured results to agentbeats-client:")
-            print(results_json)
+            print(f"\n📊 Sending structured results as DataPart to agentbeats-client:")
+            print(json.dumps(results_data, indent=2))
             
-            await event_queue.enqueue_event(new_agent_text_message(f"RESULTS_JSON:\n{results_json}"))
+            # Send results as DataPart artifact
+            results_message = new_agent_parts_message([
+                Part(root=DataPart(data=results_data))
+            ])
+            await event_queue.enqueue_event(results_message)
+            
             print(f"\n🎯 Green agent: Benchmark complete. Avg Blended F1={avg_blended:.3f} (Product F1={avg_f1:.3f})")
         else:
             await event_queue.enqueue_event(
