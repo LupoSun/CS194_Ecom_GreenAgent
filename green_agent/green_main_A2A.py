@@ -814,6 +814,25 @@ class EcomGreenAgentExecutor(AgentExecutor):
             print(summary_msg)
 
             await event_queue.enqueue_event(new_agent_text_message(summary_msg))
+            
+            # Send structured results as JSON for agentbeats-client to parse
+            results_json = json.dumps({
+                "status": "complete",
+                "results": results,
+                "summary": {
+                    "avg_blended_f1": avg_blended,
+                    "avg_f1": avg_f1,
+                    "avg_precision": avg_precision,
+                    "avg_recall": avg_recall,
+                    "num_tests": len(results),
+                    "num_skipped": len(skipped_users)
+                }
+            }, indent=2)
+            
+            print(f"\n📊 Sending structured results to agentbeats-client:")
+            print(results_json)
+            
+            await event_queue.enqueue_event(new_agent_text_message(f"RESULTS_JSON:\n{results_json}"))
             print(f"\n🎯 Green agent: Benchmark complete. Avg Blended F1={avg_blended:.3f} (Product F1={avg_f1:.3f})")
         else:
             await event_queue.enqueue_event(
