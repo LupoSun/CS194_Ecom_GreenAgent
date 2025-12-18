@@ -24,7 +24,7 @@ from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import InMemoryTaskStore
-from a2a.types import AgentCard, Message, Part, DataPart
+from a2a.types import AgentCard, Message, Part, DataPart, TextPart
 from a2a.utils import new_agent_text_message, new_agent_parts_message, get_text_parts
 
 from utils import my_a2a, parse_tags
@@ -669,9 +669,10 @@ class EcomGreenAgentExecutor(AgentExecutor):
         print(f"Green agent: Will sample {num_users} users with orders >= {min_order_size} items")
         print(f"Green agent: Pool of {len(all_users)} total users available")
         
-        await event_queue.enqueue_event(
-            new_agent_text_message(f"Starting benchmark with {num_users} users (min {min_order_size} items per order)...")
-        )
+        # NOTE: Don't send intermediate messages - agentbeats-client closes connection after first response!
+        # await event_queue.enqueue_event(
+        #     new_agent_text_message(f"Starting benchmark with {num_users} users (min {min_order_size} items per order)...")
+        # )
         
         # Run assessments - sample valid users on-the-fly
         results = []
@@ -739,12 +740,8 @@ class EcomGreenAgentExecutor(AgentExecutor):
                     "ground_truth_count": len(ground_truth_pids)
                 })
                 
-                # Emit individual result as DataPart artifact for agentbeats-client
-                result_artifact = new_agent_parts_message([
-                    Part(root=DataPart(data=metrics))
-                ])
-                await event_queue.enqueue_event(result_artifact)
-                print(f"  📤 Emitted result artifact for user {user_id}")
+                # NOTE: Don't emit individual results - wait until end to send everything in ONE message
+                print(f"  📤 Collected result for user {user_id}")
                 
                 # Print detailed results for this user (using Blended F1 as primary)
                 overlap_pids = predicted_pids & ground_truth_pids
@@ -857,8 +854,6 @@ class EcomGreenAgentExecutor(AgentExecutor):
             # Print to stdout as well so user sees it in terminal
             print(summary_msg)
 
-            await event_queue.enqueue_event(new_agent_text_message(summary_msg))
-            
             # Format results for agentbeats-client - wrap in dict (DataPart requires dict, not list!)
             results_data = {
                 "results": results,
@@ -875,14 +870,16 @@ class EcomGreenAgentExecutor(AgentExecutor):
             print(f"\n📊 Sending results to agentbeats-client ({len(results)} results)")
             print(json.dumps(results_data, indent=2))
             
-            # Send as DataPart (must be dict, not list!)
-            results_message = new_agent_parts_message([
+            # CRITICAL: Send ONE message with BOTH TextPart and DataPart together
+            # The agentbeats-client closes connection after first response!
+            final_message = new_agent_parts_message([
+                Part(root=TextPart(text=summary_msg)),
                 Part(root=DataPart(data=results_data))
             ])
-            await event_queue.enqueue_event(results_message)
+            await event_queue.enqueue_event(final_message)
             
             print(f"\n🎯 Green agent: Benchmark complete. Avg Blended F1={avg_blended:.3f} (Product F1={avg_f1:.3f})")
-            print(f"📤 Sent results DataPart to agentbeats-client")
+            print(f"📤 Sent combined TextPart + DataPart in single message")
         else:
             await event_queue.enqueue_event(
                 new_agent_text_message("Benchmark failed: No results collected")
