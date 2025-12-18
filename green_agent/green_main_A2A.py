@@ -859,23 +859,30 @@ class EcomGreenAgentExecutor(AgentExecutor):
 
             await event_queue.enqueue_event(new_agent_text_message(summary_msg))
             
-            # Format results for agentbeats-client - send just the results array
-            print(f"\n📊 Sending results array to agentbeats-client ({len(results)} results)")
-            print(json.dumps(results, indent=2))
+            # Format results for agentbeats-client - wrap in dict (DataPart requires dict, not list!)
+            results_data = {
+                "results": results,
+                "summary": {
+                    "avg_blended_f1": avg_blended,
+                    "avg_f1": avg_f1,
+                    "avg_precision": avg_precision,
+                    "avg_recall": avg_recall,
+                    "num_tests": len(results),
+                    "num_skipped": len(skipped_users)
+                }
+            }
             
-            # Try sending results as BOTH DataPart AND Text with marker
-            # Send as DataPart
+            print(f"\n📊 Sending results to agentbeats-client ({len(results)} results)")
+            print(json.dumps(results_data, indent=2))
+            
+            # Send as DataPart (must be dict, not list!)
             results_message = new_agent_parts_message([
-                Part(root=DataPart(data=results))
+                Part(root=DataPart(data=results_data))
             ])
             await event_queue.enqueue_event(results_message)
             
-            # ALSO send as text with special marker that agentbeats-client might look for
-            results_json_str = json.dumps(results, indent=2)
-            await event_queue.enqueue_event(new_agent_text_message(f"ASSESSMENT_RESULTS:\n{results_json_str}"))
-            
             print(f"\n🎯 Green agent: Benchmark complete. Avg Blended F1={avg_blended:.3f} (Product F1={avg_f1:.3f})")
-            print(f"📤 Sent {len(results)} results to agentbeats-client")
+            print(f"📤 Sent results DataPart to agentbeats-client")
         else:
             await event_queue.enqueue_event(
                 new_agent_text_message("Benchmark failed: No results collected")
