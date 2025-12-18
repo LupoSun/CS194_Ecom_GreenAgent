@@ -4,6 +4,8 @@ A benchmark evaluation agent for testing AI agents' ability to predict grocery s
 
 > **For AgentBeats Users:** This green agent evaluates shopping prediction capabilities. Deploy it to test white agents, or use the reference implementations to build your own. See [AgentBeats Integration](#agentbeats-platform-integration) for details.
 
+> **🎉 NEW: AgentBeats Platform Support!** This repository now includes Docker images, automated publishing, and complete setup guides for the AgentBeats platform. See [AGENTBEATS_SETUP.md](./AGENTBEATS_SETUP.md) for details.
+
 ## Overview
 
 This green agent evaluates how well white agents (the agents being tested) can predict what a user will purchase on their next grocery shopping trip based on purchase history. White agents use a real e-commerce API to search for products, build a basket, and complete the task.
@@ -56,12 +58,26 @@ The implementation is designed for easy reuse and extension:
 - [Usage](#usage)
 - [Evaluation Metrics](#evaluation-metrics)
 - [API Reference](#api-reference)
-- [AgentBeats Integration](#agentbeats-platform-integration)
+- [AgentBeats Integration](#agentbeats-platform-integration) ⭐ **NEW**
 - [Development](#development)
 - [Examples](#examples)
 - [Tau-Bench Demo (experimental)](#tau-bench-demo-experimental)
 - [Testing](#testing)
 - [Contributing](#contributing)
+
+## 🚀 Quick Links for AgentBeats
+
+### General Setup
+- **[Complete Setup Guide](./AGENTBEATS_SETUP.md)** - Step-by-step instructions (30-60 min)
+- **[Quick Start](./QUICKSTART_AGENTBEATS.md)** - Get on platform in 15 minutes
+- **[Checklist](./AGENTBEATS_CHECKLIST.md)** - Track your deployment progress
+- **[What Changed?](./AGENTBEATS_CHANGES.md)** - Summary of platform compliance changes
+- **[Scenario Template](./scenario.toml.example)** - Assessment configuration example
+
+### Competition Submission (AgentX-AgentBeats)
+- **[Competition Abstract](./COMPETITION_ABSTRACT.md)** - Benchmark description for submission
+- **[Submission Checklist](./COMPETITION_SUBMISSION.md)** - Complete Phase 1 submission guide
+- **[Video Guide](./VIDEO_GUIDE.md)** - How to create your 3-minute demo video
 
 ## Installation
 
@@ -480,11 +496,17 @@ This repository provides a complete e-commerce shopping prediction benchmark:
 - Production e-commerce API (no setup required)
 - Real-world dataset with 1,500+ users
 - Evaluation metrics across products, aisles, and departments
+- ✅ **Docker images** for containerized deployment
+- ✅ **GitHub Actions** for automated image publishing
 
 **Usage options:**
 1. Deploy the green agent to evaluate your white agents
 2. Study the white agent implementations to build your own
 3. Customize the evaluation logic or datasets for your needs
+
+### Quick Setup for AgentBeats
+
+Follow the complete setup guide: **[AGENTBEATS_SETUP.md](./AGENTBEATS_SETUP.md)**
 
 **Quick deployment:**
 ```bash
@@ -497,6 +519,12 @@ cd green_agent
 # Start with controller
 PORT=9001 HOST=0.0.0.0 agentbeats run_ctrl
 ```
+
+**Publishing to AgentBeats Platform:**
+1. Build and publish Docker images (see [AGENTBEATS_SETUP.md](./AGENTBEATS_SETUP.md))
+2. Create a leaderboard repository from the [template](https://github.com/agentbeats/leaderboard-template)
+3. Register your agent at [agentbeats.dev](https://agentbeats.dev)
+4. Configure webhooks and run assessments via GitHub Actions
 
 The controller uses the existing `run.sh` script and exposes your green agent with A2A endpoints.
 

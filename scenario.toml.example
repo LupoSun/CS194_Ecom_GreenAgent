@@ -1,0 +1,57 @@
+# AgentBeats Assessment Scenario Configuration
+# This file defines how to run assessments for the E-commerce Green Agent
+
+[green_agent]
+# Docker image for the green agent (evaluator)
+# Replace with your actual published image
+image = "ghcr.io/YOUR_USERNAME/ecom-green-agent:latest"
+
+# Environment variables for the green agent
+# OPENAI_API_KEY is injected by GitHub Actions if configured as a secret
+env = { 
+    ECOM_API_BASE = "https://green-agent-production.up.railway.app"
+}
+
+# Purple agent (the agent being evaluated)
+[[participants]]
+# AgentBeats agent ID (obtained from agent registration page)
+agentbeats_id = ""  # Fill this in after registering your purple agent
+
+# Docker image for the purple agent
+image = "ghcr.io/YOUR_USERNAME/ecom-white-agent:latest"
+
+# Name identifier for this participant
+name = "agent"
+
+# Environment variables for the purple agent
+env = { 
+    OPENAI_API_KEY = "${OPENAI_API_KEY}"  # Injected from GitHub secrets
+}
+
+# Assessment configuration
+[config]
+# Mode: "benchmark" for multiple users, "white_agent" for single user
+mode = "benchmark"
+
+# Number of users to test (for benchmark mode)
+num_users = 10
+
+# Minimum order size (items) to include a user
+min_order_size = 10
+
+# Railway environment URL
+environment_base = "https://green-agent-production.up.railway.app"
+
+# Whether to use baseline instead of purple agent
+use_baseline = false
+
+# Random seed for reproducibility (optional)
+# random_state = 42
+
+# Example: Single user assessment mode
+# Uncomment and modify this section to test a specific user
+# [config]
+# mode = "white_agent"
+# user_id = 123
+# environment_base = "https://green-agent-production.up.railway.app"
+# agent_key = "test_agent_123"

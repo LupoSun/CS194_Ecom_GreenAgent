@@ -4,7 +4,9 @@ AgentBeats-compatible green assessment agent for e-commerce basket prediction. C
 
 ## Quickstart
 
-**Prerequisites:** Python 3.10+
+**Prerequisites:** Python 3.10+ (or Docker)
+
+### Option 1: Local Python
 
 1. Install dependencies:
 ```bash
@@ -21,6 +23,22 @@ Or directly:
 HOST=localhost AGENT_PORT=9001 python green_main_A2A.py
 ```
 
+### Option 2: Docker (AgentBeats-compliant)
+
+1. Build the image:
+```bash
+docker build -t ecom-green-agent .
+```
+
+2. Run the container:
+```bash
+docker run -p 9001:9001 ecom-green-agent
+```
+
+For publishing to AgentBeats, see `../AGENTBEATS_SETUP.md`.
+
+### Testing
+
 3. Start a white agent to test:
    - **Your agent**: Run your service on port 9002
    - **Stub agent**: `cd ../white_agent_baseline && python stub_white_agent.py`
@@ -32,6 +50,7 @@ python quick_test.py
 ```
 
 For detailed A2A protocol testing, see `docs/a2a_white_agent_interop_demo.md`.
+For AgentBeats platform deployment, see `../AGENTBEATS_SETUP.md`.
 
 ## Project Structure
 
