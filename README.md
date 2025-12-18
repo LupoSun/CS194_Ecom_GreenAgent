@@ -4,8 +4,6 @@ A benchmark evaluation agent for testing AI agents' ability to predict grocery s
 
 > **For AgentBeats Users:** This green agent evaluates shopping prediction capabilities. Deploy it to test white agents, or use the reference implementations to build your own. See [AgentBeats Integration](#agentbeats-platform-integration) for details.
 
-> **🎉 NEW: AgentBeats Platform Support!** This repository now includes Docker images, automated publishing, and complete setup guides for the AgentBeats platform. See [AGENTBEATS_SETUP.md](./AGENTBEATS_SETUP.md) for details.
-
 ## Overview
 
 This green agent evaluates how well white agents (the agents being tested) can predict what a user will purchase on their next grocery shopping trip based on purchase history. White agents use a real e-commerce API to search for products, build a basket, and complete the task.
