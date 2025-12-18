@@ -404,6 +404,12 @@ class EcomGreenAgentExecutor(AgentExecutor):
             print("Green agent: Received assessment request")
             user_input = context.get_user_input()
             
+            # DEBUG: Print what we received
+            print(f"\n{'='*60}")
+            print(f"DEBUG: Received input from agentbeats-client:")
+            print(f"{user_input[:500]}..." if len(user_input) > 500 else user_input)
+            print(f"{'='*60}\n")
+            
             # Try to parse as XML-wrapped format first (AgentBeats platform style)
             if "<config>" in user_input or "<white_agent_url>" in user_input:
                 print("Green agent: Detected XML-wrapped format")
@@ -424,6 +430,11 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 # Direct JSON format (your current format)
                 print("Green agent: Detected direct JSON format")
                 task_config = json.loads(user_input)
+            
+            # DEBUG: Print parsed config
+            print(f"\nDEBUG: Parsed task_config:")
+            print(json.dumps(task_config, indent=2))
+            print(f"{'='*60}\n")
 
             # Auto-detect mode if not provided (fixes AgentBeats platform launch)
             if "mode" not in task_config:
@@ -629,9 +640,20 @@ class EcomGreenAgentExecutor(AgentExecutor):
         env_base_url = task_config.get("environment_base", "http://localhost:8001")
         min_order_size = task_config.get("min_order_size", 10)  # Configurable threshold
         
+        # Check for participant endpoints if white_agent_url not directly provided
+        if not white_agent_url and "participants" in task_config:
+            participants = task_config["participants"]
+            if participants and len(participants) > 0:
+                # Use first participant's endpoint as white_agent_url
+                first_participant = participants[0]
+                white_agent_url = first_participant.get("endpoint")
+                print(f"Green agent: Extracted white_agent_url from participants: {white_agent_url}")
+        
         # Default use_baseline to False if white_agent_url is present, otherwise True
         default_use_baseline = False if white_agent_url else True
         use_baseline = task_config.get("use_baseline", default_use_baseline)
+        
+        print(f"Green agent: white_agent_url={white_agent_url}, use_baseline={use_baseline}")
         
         # Get all available users
         all_users = self.df_orders["user_id"].unique().tolist()
@@ -701,6 +723,13 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 }
                 
                 results.append(metrics)
+                
+                # Emit individual result as DataPart artifact for agentbeats-client
+                result_artifact = new_agent_parts_message([
+                    Part(root=DataPart(data=metrics))
+                ])
+                await event_queue.enqueue_event(result_artifact)
+                print(f"  📤 Emitted result artifact for user {user_id}")
                 
                 # Print detailed results for this user (using Blended F1 as primary)
                 overlap_pids = predicted_pids & ground_truth_pids
