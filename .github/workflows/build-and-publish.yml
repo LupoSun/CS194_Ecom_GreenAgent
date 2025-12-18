@@ -1,11 +1,10 @@
 # GitHub Actions workflow to build and publish Docker images
-# This makes it easy to publish your agents to GitHub Container Registry
 
 name: Build and Publish Docker Images
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, agent-beats-competition-integration ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
