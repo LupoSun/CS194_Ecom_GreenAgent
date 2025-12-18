@@ -867,11 +867,36 @@ class EcomGreenAgentExecutor(AgentExecutor):
                 }
             }
             
-            print(f"\n📊 Sending results to agentbeats-client ({len(results)} results)")
+            print(f"\n📊 Preparing results ({len(results)} results)")
             print(json.dumps(results_data, indent=2))
             
-            # CRITICAL: Send ONE message with BOTH TextPart and DataPart together
-            # The agentbeats-client closes connection after first response!
+            # WORKAROUND: Write results directly to shared output directory
+            # The agentbeats-client doesn't properly extract DataParts
+            # Write to green_results.json (agentbeats-client will overwrite results.json)
+            try:
+                import os
+                output_file = "/app/output/green_results.json"
+                
+                # Get participant info from task_config
+                participants_dict = task_config.get("participants", {})
+                # participants_dict is like {"agent": "http://agent:9009/"}
+                
+                # Format that matches what agentbeats-client creates:
+                final_results = {
+                    "participants": participants_dict,
+                    "results": results
+                }
+                
+                with open(output_file, 'w') as f:
+                    json.dump(final_results, f, indent=2)
+                print(f"\n📁 Wrote results directly to {output_file}")
+                print(json.dumps(final_results, indent=2))
+            except Exception as e:
+                print(f"\n⚠️  Failed to write results file: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Also send via A2A (in case client starts reading it)
             final_message = new_agent_parts_message([
                 Part(root=TextPart(text=summary_msg)),
                 Part(root=DataPart(data=results_data))
@@ -879,7 +904,6 @@ class EcomGreenAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(final_message)
             
             print(f"\n🎯 Green agent: Benchmark complete. Avg Blended F1={avg_blended:.3f} (Product F1={avg_f1:.3f})")
-            print(f"📤 Sent combined TextPart + DataPart in single message")
         else:
             await event_queue.enqueue_event(
                 new_agent_text_message("Benchmark failed: No results collected")
