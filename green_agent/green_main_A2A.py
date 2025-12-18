@@ -771,6 +771,9 @@ class EcomGreenAgentExecutor(AgentExecutor):
         
         # Aggregate results
         if results:
+            # Store results in self.runs for agentbeats-client to extract
+            self.runs = results
+            
             avg_blended = sum(r["blended_f1"] for r in results) / len(results)
             avg_f1 = sum(r["f1"] for r in results) / len(results)
             avg_precision = sum(r["precision"] for r in results) / len(results)
