@@ -29,5 +29,5 @@ COPY . .
 EXPOSE 9001
 
 # Start the green agent
-# AgentBeats will set AGENT_URL automatically in the platform
-CMD ["sh", "-c", "python green_main_A2A.py"]
+# Note: the server reads AGENT_PORT, while Cloud Run sets PORT.
+CMD ["sh", "-c", "ROLE=${ROLE} HOST=${HOST} AGENT_PORT=${PORT} python3 green_main_A2A.py"]

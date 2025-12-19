@@ -27,7 +27,10 @@ from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard, Message, Part, DataPart, TextPart
 from a2a.utils import new_agent_text_message, new_agent_parts_message, get_text_parts
 
-from utils import my_a2a, parse_tags
+try:
+    from utils import my_a2a, parse_tags
+except ImportError:
+    from green_agent.utils import my_a2a, parse_tags
 from html import unescape
 
 ROOT = Path(__file__).resolve().parent
@@ -1200,16 +1203,13 @@ def start_green_agent(
     # Load agent card
     agent_card_dict = load_agent_card_toml(agent_name, ROOT)
     
-    # IMPORTANT: Use AGENT_URL from environment
+    # IMPORTANT: Prefer an externally reachable URL if provided (e.g. Cloud Run / Docker Compose service URL).
     agent_url = os.getenv("AGENT_URL")
     if agent_url:
         agent_card_dict["url"] = agent_url
         print(f"AGENT_URL: {agent_url}")
     else:
-        # Fallback for local testing
-        host = os.getenv("HOST", "0.0.0.0")
-        port = int(os.getenv("AGENT_PORT", "9001"))
-        agent_card_dict["url"] = f"http://{host}:{port}"
+        agent_card_dict["url"] = f"http://{host}:{port}/"
 
     agent_card = AgentCard(**agent_card_dict)
     
@@ -1254,13 +1254,29 @@ def start_green_agent(
     
     # # Add AgentBeats-required endpoints
     from starlette.responses import JSONResponse
-    from starlette.routing import Route, Mount
+    from starlette.routing import Route
     async def status_endpoint(request):
         return JSONResponse({"status": "ok", "agent": "running"})
+
+    async def health_endpoint(request):
+        return JSONResponse({"status": "healthy", "agent": agent_card_dict.get("name", agent_name)})
+
+    async def reset_endpoint(request):
+        executor.runs = []
+        return JSONResponse({"status": "reset"})
     
     # Add the status route
     starlette_app.routes.append(
         Route("/status", endpoint=status_endpoint, methods=["GET"])
+    )
+    starlette_app.routes.append(
+        Route("/healthz", endpoint=health_endpoint, methods=["GET"])
+    )
+    starlette_app.routes.append(
+        Route("/health", endpoint=health_endpoint, methods=["GET"])
+    )
+    starlette_app.routes.append(
+        Route("/reset", endpoint=reset_endpoint, methods=["POST"])
     )
     
     # async def get_agent_card_root(request):
