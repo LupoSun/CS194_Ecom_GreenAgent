@@ -1161,7 +1161,7 @@ def load_agent_card_toml(agent_name: str, script_dir: Path) -> dict:
 def start_green_agent(
     agent_name: str = "ecom_green_agent",
     host: str = "localhost",
-    port: int = 9001,
+    port: int = 9009,
     products_csv: Optional[str] = None,
     orders_csv: Optional[str] = None
 ):
@@ -1324,8 +1324,8 @@ def start_green_agent(
 
 if __name__ == "__main__":
     # Read from environment variables set by AgentBeats controller
-    host = os.environ.get("HOST", "localhost")
-    port = int(os.environ.get("AGENT_PORT", "9001"))
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("AGENT_PORT", os.environ.get("PORT", "9009")))
     role = os.getenv("ROLE", "green") 
 
     # Get the directory where this script is located

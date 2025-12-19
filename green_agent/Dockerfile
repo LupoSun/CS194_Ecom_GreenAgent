@@ -4,7 +4,7 @@ FROM python:3.13-slim
 # Prevent Python from writing .pyc files and make logs unbuffered
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=9001 \
+    PORT=9009 \
     HOST=0.0.0.0 \
     ROLE=green
 
@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose the default port
-EXPOSE 9001
+EXPOSE 9009
 
 # Start the green agent
 # Note: the server reads AGENT_PORT, while Cloud Run sets PORT.

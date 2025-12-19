@@ -528,7 +528,7 @@ if __name__ == "__main__":
 
     # Get configuration from environment
     host = os.environ.get("WHITE_HOST", os.environ.get("HOST", "0.0.0.0"))
-    port = int(os.environ.get("WHITE_PORT", os.environ.get("AGENT_PORT", "9002")))
+    port = int(os.environ.get("WHITE_PORT", os.environ.get("AGENT_PORT", os.environ.get("PORT", "9002"))))
     
     # Check for API Key
     if not os.environ.get("OPENAI_API_KEY"):
@@ -571,4 +571,3 @@ if __name__ == "__main__":
     print(f"\nStarting OpenAI White Agent on {host}:{port}")
     print(f"Agent Card URL: {agent_url}")
     uvicorn.run(starlette_app, host=host, port=port)
-
